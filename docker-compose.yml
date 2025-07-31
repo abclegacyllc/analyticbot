@@ -1,0 +1,16 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: analyticbot_postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: analyticuser
+      POSTGRES_PASSWORD: analyticpass
+      POSTGRES_DB: analyticbot_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
