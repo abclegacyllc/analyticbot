@@ -25,21 +25,19 @@ async def add_channel_handler(message: types.Message):
 
 # --- GUARD MODULE COMMANDS ---
 @router.message(Command("add_word"))
-async def add_word_handler(message: types.Message):
-    try:
-        word = message.text.split(maxsplit=1)[1]
-    except IndexError:
+async def add_word_handler(message: types.Message, command: CommandObject):
+    if not command.args:
         return await message.reply("Usage: /add_word <word_to_block>")
+    word = command.args
     channel_id_to_manage = message.chat.id
     await guard_service.add_word(channel_id_to_manage, word)
     await message.reply(f"✅ Word '{word}' has been added to the blacklist.")
 
 @router.message(Command("remove_word"))
-async def remove_word_handler(message: types.Message):
-    try:
-        word = message.text.split(maxsplit=1)[1]
-    except IndexError:
+async def remove_word_handler(message: types.Message, command: CommandObject):
+    if not command.args:
         return await message.reply("Usage: /remove_word <word_to_remove>")
+    word = command.args
     channel_id_to_manage = message.chat.id
     await guard_service.remove_word(channel_id_to_manage, word)
     await message.reply(f"✅ Word '{word}' has been removed from the blacklist.")
@@ -57,7 +55,6 @@ async def list_words_handler(message: types.Message):
 # --- SCHEDULER MODULE COMMANDS ---
 @router.message(Command("schedule"))
 async def handle_schedule(message: types.Message, command: CommandObject):
-    # Using CommandObject is the recommended aiogram way to get arguments
     if command.args is None:
         return await message.reply(
             'Usage: /schedule "YYYY-MM-DD HH:MM" "Your post text"\n\n'
@@ -65,7 +62,6 @@ async def handle_schedule(message: types.Message, command: CommandObject):
         )
 
     try:
-        # shlex.split works reliably on the arguments string
         args = shlex.split(command.args)
         if len(args) != 2:
             raise ValueError("Incorrect number of arguments")
