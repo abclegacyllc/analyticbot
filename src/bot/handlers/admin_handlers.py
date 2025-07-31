@@ -4,6 +4,7 @@ from aiogram.filters import Command, CommandObject
 from datetime import datetime, timezone
 from src.bot.services.guard_service import GuardService
 from src.bot.services.scheduler_service import SchedulerService
+from src.bot.services.analytics_service import AnalyticsService
 from src.bot.database.repository import ChannelRepository
 
 router = Router()
@@ -12,6 +13,7 @@ router = Router()
 guard_service: GuardService = None
 scheduler_service: SchedulerService = None
 channel_repository: ChannelRepository = None
+analytics_service: AnalyticsService = None
 
 # --- TEMPORARY COMMAND TO REGISTER A CHANNEL ---
 @router.message(Command("add_channel"))
@@ -87,3 +89,22 @@ async def handle_schedule(message: types.Message, command: CommandObject):
         schedule_time=aware_dt
     )
     await message.reply(f"✅ Your message has been scheduled for {aware_dt.strftime('%Y-%m-%d %H:%M %Z')}.")
+
+
+# --- NEW ANALYTICS COMMAND ---
+@router.message(Command("views"))
+async def get_views_handler(message: types.Message, command: CommandObject):
+    if command.args is None:
+        return await message.reply("Usage: /views <post_id>")
+
+    try:
+        post_id = int(command.args)
+    except ValueError:
+        return await message.reply("Invalid post_id. It must be a number.")
+
+    view_count = await analytics_service.get_post_views(post_id)
+
+    if view_count is None:
+        return await message.reply(f"Could not retrieve views for Post ID {post_id}. Please ensure the ID is correct and the post was sent successfully.")
+    
+    await message.reply(f"📊 Post ID {post_id} has {view_count} views.")
