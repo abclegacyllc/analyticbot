@@ -6,4 +6,5 @@ python-dotenv
 aiogram-i18n
 Babel
 fluent.runtime
-SQLAlchemy  
+SQLAlchemy
+psycopg2-binary
