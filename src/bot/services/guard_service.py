@@ -16,7 +16,7 @@ class GuardService:
 
     async def list_words(self, channel_id: int) -> Set[str]:
         words = await self.redis.smembers(self._key(channel_id))
-        # Redis'dan kelgan 'bytes' ni 'str' ga o'tkazamiz
+        # Decode bytes from Redis into strings
         return {word.decode('utf-8') for word in words}
 
     async def is_blocked(self, channel_id: int, text: str) -> bool:
@@ -25,7 +25,7 @@ class GuardService:
             return False
         
         text_lower = text.lower()
-        # Har bir so'zni alohida tekshiramiz
+        # Check each word in the message
         for word in text_lower.split():
             if word in blocked_words:
                 return True
