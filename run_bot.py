@@ -3,9 +3,10 @@ import logging
 from src.bot.bot import bot, dp
 from src.bot.handlers import user_handlers, admin_handlers
 from src.bot.database import create_pool
-from src.bot.database.repository import UserRepository, SchedulerRepository, ChannelRepository
+from src.bot.database.repository import UserRepository, SchedulerRepository, ChannelRepository, AnalyticsRepository
 from src.bot.services.guard_service import GuardService
 from src.bot.services.scheduler_service import SchedulerService
+from src.bot.services.analytics_service import AnalyticsService
 from redis.asyncio import Redis
 from src.bot.config import REDIS_URL, DATABASE_URL
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -18,27 +19,20 @@ async def main():
     db_pool = await create_pool()
     redis_conn = Redis.from_url(REDIS_URL)
 
-    # --- APScheduler Setup ---
+    # --- APScheduler Setup (Now much simpler) ---
     sqlalchemy_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://")
-    jobstores = {
-        'default': SQLAlchemyJobStore(url=sqlalchemy_url)
-    }
-    # Pass the bot and db_pool to all jobs by default
-    job_defaults = {
-        'kwargs': {
-            'bot': bot,
-            'db_pool': db_pool
-        }
-    }
-    scheduler = AsyncIOScheduler(jobstores=jobstores, job_defaults=job_defaults, timezone="UTC")
+    jobstores = { 'default': SQLAlchemyJobStore(url=sqlalchemy_url) }
+    scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
 
     # --- Repositories and Services Instantiation ---
     user_repo = UserRepository(db_pool)
     scheduler_repo = SchedulerRepository(db_pool)
     channel_repo = ChannelRepository(db_pool)
+    analytics_repo = AnalyticsRepository(db_pool)
     guard_service = GuardService(redis_conn)
-    # The service no longer needs the bot or repository objects to do its work
+    # The service is now simple and has no complex dependencies
     scheduler_service = SchedulerService(scheduler, scheduler_repo)
+    analytics_service = AnalyticsService(bot, analytics_repo)
 
     # --- Dependency Injection ---
     user_handlers.user_repository = user_repo
@@ -46,6 +40,7 @@ async def main():
     admin_handlers.guard_service = guard_service
     admin_handlers.scheduler_service = scheduler_service
     admin_handlers.channel_repository = channel_repo
+    admin_handlers.analytics_service = analytics_service
 
     # --- Router Registration ---
     dp.include_router(admin_handlers.router)
