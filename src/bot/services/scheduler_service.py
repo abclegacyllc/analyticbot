@@ -1,5 +1,3 @@
-# src/bot/services/scheduler_service.py
-
 from aiogram import Bot
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from src.bot.database.repository import SchedulerRepository
