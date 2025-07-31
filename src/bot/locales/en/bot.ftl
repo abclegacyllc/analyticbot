@@ -18,3 +18,11 @@ guard-list-usage = 📝 Usage: /list_words @channel_username
 guard-list-header = 📋 Blacklisted words for channel "{ $channel_name }":
 guard-list-empty = 📭 The blacklist for this channel is empty.
 guard-list-item = • { $word }
+
+# === Analytics Module ===
+# /stats command
+stats-usage = 📝 Usage: /stats [@channel_username]
+stats-generating = ⏳ Generating statistics, please wait...
+stats-caption-all = 📊 Here is the overall performance chart for all your channels for the last 30 days.
+stats-caption-specific = 📊 Here is the performance chart for { $channel_name } for the last 30 days.
+stats-no-data = 🤷‍♂️ Could not find any view data to generate a chart.
