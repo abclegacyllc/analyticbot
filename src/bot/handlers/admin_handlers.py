@@ -126,6 +126,47 @@ async def list_words_handler(
 
 # --- SCHEDULER & ANALYTICS ---
 
+@router.message(Command("stats"))
+async def get_stats_handler(
+    message: types.Message,
+    command: CommandObject,
+    i18n: I18nContext,
+    channel_repo: ChannelRepository,
+    analytics_service: AnalyticsService,
+):
+    """Handles the /stats command, generating a chart for all or a specific channel."""
+    await message.reply(i18n.get("stats-generating"))
+    
+    channel_id: int | None = None
+    channel_name: str | None = command.args
+
+    # If a channel username is provided, verify ownership
+    if channel_name:
+        if not channel_name.startswith('@'):
+            return await message.reply(i18n.get("stats-usage"))
+        
+        channel_id = await get_and_verify_channel(message, channel_name, channel_repo, i18n)
+        if not channel_id:
+            return # Error message is sent from the helper function
+    
+    # Generate the chart
+    chart_image = await analytics_service.create_views_chart(
+        user_id=message.from_user.id,
+        channel_id=channel_id
+    )
+
+    if chart_image:
+        photo = BufferedInputFile(chart_image.read(), filename="stats.png")
+        caption = (
+            i18n.get("stats-caption-specific", channel_name=channel_name)
+            if channel_name
+            else i18n.get("stats-caption-all")
+        )
+        await message.answer_photo(photo=photo, caption=caption)
+    else:
+        await message.answer(i18n.get("stats-no-data"))
+      
+        
 @router.message(Command("schedule"))
 async def handle_schedule(
     message: types.Message,
