@@ -3,7 +3,6 @@ import logging
 from src.bot.bot import bot, dp
 from src.bot.handlers import user_handlers, admin_handlers
 from src.bot.database import create_pool
-# --- UPDATED IMPORT PATH ---
 from src.bot.database.repositories import (
     UserRepository, 
     SchedulerRepository, 
