@@ -1,5 +1,5 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from src.bot.database.repository import SchedulerRepository
+from src.bot.database.repositories import SchedulerRepository
 from datetime import datetime
 import logging
 from src.bot.tasks import send_scheduled_message
