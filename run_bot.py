@@ -12,9 +12,10 @@ from src.bot.database.repositories import (
 from src.bot.services.guard_service import GuardService
 from src.bot.services.scheduler_service import SchedulerService
 from src.bot.services.analytics_service import AnalyticsService
-from src.bot.middlewares.dependency_middleware import DependencyMiddleware # --- IMPORT NEW MIDDLEWARE ---
+from src.bot.middlewares.dependency_middleware import DependencyMiddleware
 from redis.asyncio import Redis
-from src.bot.config import REDIS_URL, DATABASE_URL
+# Import the single settings object
+from src.bot.config import settings
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 
@@ -23,11 +24,13 @@ logger = logging.getLogger(__name__)
 
 async def main():
     db_pool = await create_pool()
-    redis_conn = Redis.from_url(REDIS_URL)
+    redis_conn = Redis.from_url(settings.REDIS_URL.unicode_string())
     dp['db_pool'] = db_pool
 
     # --- APScheduler Setup ---
-    sqlalchemy_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://")
+    # Use psycopg2 for SQLAlchemy as it's synchronous
+    db_url_str = settings.DATABASE_URL.unicode_string()
+    sqlalchemy_url = db_url_str.replace("postgresql://", "postgresql+psycopg2://")
     jobstores = { 'default': SQLAlchemyJobStore(url=sqlalchemy_url) }
     scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
 
@@ -40,10 +43,7 @@ async def main():
     scheduler_service = SchedulerService(scheduler, scheduler_repo)
     analytics_service = AnalyticsService(bot, analytics_repo, scheduler_repo)
 
-    # --- REMOVED OLD DEPENDENCY INJECTION METHOD ---
-
     # --- Register Middlewares ---
-    # Instantiate and register our new dependency middleware
     dependency_middleware = DependencyMiddleware(
         user_repo=user_repo,
         channel_repo=channel_repo,
