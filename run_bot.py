@@ -10,6 +10,7 @@ from redis.asyncio import Redis
 from src.bot.config import REDIS_URL, DATABASE_URL
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from src.bot.database.repository import UserRepository, SchedulerRepository, ChannelRepository
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ async def main():
     # --- Repositories and Services Instantiation ---
     user_repo = UserRepository(db_pool)
     scheduler_repo = SchedulerRepository(db_pool)
+    channel_repo = ChannelRepository(db_pool) # <-- Instantiate it
     guard_service = GuardService(redis_conn)
     scheduler_service = SchedulerService(scheduler, bot, scheduler_repo)
 
@@ -35,6 +37,7 @@ async def main():
     user_handlers.guard_service = guard_service
     admin_handlers.guard_service = guard_service
     admin_handlers.scheduler_service = scheduler_service
+    admin_handlers.channel_repository = channel_repo # <-- Inject it
 
     # --- Router Registration ---
     dp.include_router(admin_handlers.router)
