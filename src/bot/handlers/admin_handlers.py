@@ -95,7 +95,6 @@ async def handle_schedule(message: types.Message, command: CommandObject):
 @router.message(Command("views"))
 async def get_views_handler(message: types.Message, command: CommandObject):
     if command.args is None:
-        # Use a format that is safe for HTML parse mode
         return await message.reply("Usage: /views POST_ID")
 
     try:
@@ -103,7 +102,9 @@ async def get_views_handler(message: types.Message, command: CommandObject):
     except ValueError:
         return await message.reply("Invalid post_id. It must be a number.")
 
-    view_count = await analytics_service.get_post_views(post_id)
+    # Pass the admin's ID to the service for the workaround
+    admin_id = message.from_user.id
+    view_count = await analytics_service.get_post_views(post_id, admin_id)
 
     if view_count is None:
         return await message.reply(f"Could not retrieve views for Post ID {post_id}. Please ensure the ID is correct and the post was sent successfully.")
