@@ -1,6 +1,6 @@
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
-from src.bot.database.repository import AnalyticsRepository, SchedulerRepository
+from src.bot.database.repositories import AnalyticsRepository, SchedulerRepository
 import logging
 
 logger = logging.getLogger(__name__)
