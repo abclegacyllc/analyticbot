@@ -1,40 +1,53 @@
 import asyncio
 import logging
 from src.bot.bot import bot, dp
-from src.bot.handlers import user_handlers, admin_handlers # import admin_handlers
+from src.bot.handlers import user_handlers, admin_handlers
 from src.bot.database import create_pool
-from src.bot.database.repository import UserRepository
+from src.bot.database.repository import UserRepository, SchedulerRepository
 from src.bot.services.guard_service import GuardService
+from src.bot.services.scheduler_service import SchedulerService
 from redis.asyncio import Redis
-from src.bot.config import REDIS_URL
+from src.bot.config import REDIS_URL, DATABASE_URL
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 
-
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
 async def main():
     db_pool = await create_pool()
     redis_conn = Redis.from_url(REDIS_URL)
 
-    # Services and Repositories
-    user_repo = UserRepository(db_pool)
-    guard_service = GuardService(redis_conn)
+    # --- APScheduler Setup ---
+    jobstores = {
+        'default': SQLAlchemyJobStore(url=DATABASE_URL.replace("+asyncpg", "")) # SQLAlchemy uses standard URL
+    }
+    scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
 
-    # Inject dependencies into handlers
+    # --- Repositories and Services Instantiation ---
+    user_repo = UserRepository(db_pool)
+    scheduler_repo = SchedulerRepository(db_pool)
+    guard_service = GuardService(redis_conn)
+    scheduler_service = SchedulerService(scheduler, bot, scheduler_repo)
+
+    # --- Dependency Injection ---
     user_handlers.user_repository = user_repo
     user_handlers.guard_service = guard_service
     admin_handlers.guard_service = guard_service
+    admin_handlers.scheduler_service = scheduler_service
 
-    # Register routers
-    # IMPORTANT: More specific command routers (admin) must be registered before a general text handler (user)
+    # --- Router Registration ---
     dp.include_router(admin_handlers.router)
     dp.include_router(user_handlers.router)
 
     try:
-        logger.info("Bot is starting...")
+        logger.info("Starting scheduler...")
+        scheduler.start()
+        logger.info("Starting bot...")
         await dp.start_polling(bot)
     finally:
-        logger.info("Bot is shutting down...")
+        logger.info("Shutting down...")
+        scheduler.shutdown()
         await db_pool.close()
         await redis_conn.close()
         await dp.storage.close()
