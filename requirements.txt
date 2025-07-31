@@ -9,3 +9,5 @@ fluent.runtime
 SQLAlchemy
 psycopg2-binary
 matplotlib
+pydantic
+pydantic-settings
