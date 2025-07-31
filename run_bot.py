@@ -1,5 +1,3 @@
-# run_bot.py
-
 import asyncio
 import logging
 from src.bot.bot import bot, dp
