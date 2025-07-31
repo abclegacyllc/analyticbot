@@ -3,14 +3,13 @@ import logging
 from src.bot.bot import bot, dp
 from src.bot.handlers import user_handlers, admin_handlers
 from src.bot.database import create_pool
-from src.bot.database.repository import UserRepository, SchedulerRepository
+from src.bot.database.repository import UserRepository, SchedulerRepository, ChannelRepository
 from src.bot.services.guard_service import GuardService
 from src.bot.services.scheduler_service import SchedulerService
 from redis.asyncio import Redis
 from src.bot.config import REDIS_URL, DATABASE_URL
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
-from src.bot.database.repository import UserRepository, SchedulerRepository, ChannelRepository
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -20,15 +19,17 @@ async def main():
     redis_conn = Redis.from_url(REDIS_URL)
 
     # --- APScheduler Setup ---
+    # Create a specific URL for SQLAlchemy using the psycopg2 synchronous driver
+    sqlalchemy_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://")
     jobstores = {
-        'default': SQLAlchemyJobStore(url=DATABASE_URL.replace("+asyncpg", "")) # SQLAlchemy uses standard URL
+        'default': SQLAlchemyJobStore(url=sqlalchemy_url)
     }
     scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
 
     # --- Repositories and Services Instantiation ---
     user_repo = UserRepository(db_pool)
     scheduler_repo = SchedulerRepository(db_pool)
-    channel_repo = ChannelRepository(db_pool) # <-- Instantiate it
+    channel_repo = ChannelRepository(db_pool)
     guard_service = GuardService(redis_conn)
     scheduler_service = SchedulerService(scheduler, bot, scheduler_repo)
 
@@ -37,7 +38,7 @@ async def main():
     user_handlers.guard_service = guard_service
     admin_handlers.guard_service = guard_service
     admin_handlers.scheduler_service = scheduler_service
-    admin_handlers.channel_repository = channel_repo # <-- Inject it
+    admin_handlers.channel_repository = channel_repo
 
     # --- Router Registration ---
     dp.include_router(admin_handlers.router)
