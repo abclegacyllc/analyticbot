@@ -5,13 +5,11 @@ from src.bot.database.repository import SchedulerRepository
 
 logger = logging.getLogger(__name__)
 
-# The order of arguments is changed here
 async def send_scheduled_message(post_id: int, bot: Bot, db_pool: asyncpg.Pool):
     """
     This is the standalone function that APScheduler will execute.
     """
     logger.info(f"Executing job for post_id: {post_id}")
-    # We create a repository instance here because this function is self-contained
     repo = SchedulerRepository(db_pool)
     post = await repo.get_scheduled_post(post_id)
 
@@ -25,6 +23,7 @@ async def send_scheduled_message(post_id: int, bot: Bot, db_pool: asyncpg.Pool):
             text=post["text"]
         )
         await repo.update_post_status(post_id, "sent")
+        # Save the message_id for analytics
         await repo.set_sent_message_id(post_id, sent_message.message_id)
         logger.info(f"Successfully sent post {post_id} (message_id: {sent_message.message_id}) to channel {post['channel_id']}")
     except Exception as e:
