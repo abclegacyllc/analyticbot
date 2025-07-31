@@ -5,3 +5,4 @@ apscheduler
 python-dotenv
 aiogram-i18n
 Babel
+fluent.runtime
