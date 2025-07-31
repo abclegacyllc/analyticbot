@@ -33,7 +33,7 @@ class ChannelRepository:
                 ON CONFLICT (channel_id) DO NOTHING
             """, channel_id, admin_id, plan)
 
-# --- NEW SchedulerRepository ---
+# --- UPDATED SchedulerRepository ---
 class SchedulerRepository:
     def __init__(self, pool: asyncpg.Pool):
         self.pool = pool
@@ -57,3 +57,12 @@ class SchedulerRepository:
         """Updates the status of a post (e.g., 'sent', 'failed')."""
         async with self.pool.acquire() as conn:
             await conn.execute("UPDATE scheduled_posts SET status = $1 WHERE post_id = $2", status, post_id)
+
+    async def set_sent_message_id(self, post_id: int, message_id: int):
+        """Saves the message_id of a sent post for analytics."""
+        async with self.pool.acquire() as conn:
+            await conn.execute("""
+                UPDATE scheduled_posts
+                SET sent_message_id = $1
+                WHERE post_id = $2
+            """, message_id, post_id)
