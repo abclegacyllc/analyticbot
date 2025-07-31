@@ -1,11 +1,9 @@
 import asyncpg
 from typing import Optional, Dict, Any, List, Tuple
 from datetime import date, timedelta
-from sqlalchemy import select, func, cast, Date
 
-# We will need the Post model from the database to construct the query
-from src/bot/database.models import Post, Channel
-
+# This file does not need models for its raw SQL queries,
+# so the problematic import has been removed.
 
 class AnalyticsRepository:
     def __init__(self, pool: asyncpg.Pool):
@@ -34,17 +32,10 @@ class AnalyticsRepository:
             end_date = date.today()
             start_date = end_date - timedelta(days=days - 1)
 
-            # Base query to get channels owned by the user
-            channels_query = "SELECT channel_id FROM channels WHERE admin_id = $1"
+            base_channels_query = "SELECT channel_id FROM channels WHERE admin_id = $1"
             query_params = [user_id]
-
-            # If a specific channel is requested, add it to the filter
-            if channel_id:
-                channels_query += " AND channel_id = $2"
-                query_params.append(channel_id)
-
-            # The main query to fetch daily views
-            stmt = f"""
+            
+            main_query = """
                 SELECT
                     CAST(p.schedule_time AS DATE) AS view_date,
                     SUM(p.views) AS total_views
@@ -54,21 +45,28 @@ class AnalyticsRepository:
                     p.channel_id IN ({channels_query})
                     AND p.status = 'sent'
                     AND p.views IS NOT NULL
-                    AND CAST(p.schedule_time AS DATE) BETWEEN $3 AND $4
+                    AND CAST(p.schedule_time AS DATE) BETWEEN ${param_start} AND ${param_end}
                 GROUP BY
                     view_date
                 ORDER BY
                     view_date;
             """
-            # Add date range to query params
+
+            if channel_id:
+                channels_query = base_channels_query + " AND channel_id = $2"
+                query_params.append(channel_id)
+                param_start, param_end = 3, 4
+            else:
+                channels_query = base_channels_query
+                param_start, param_end = 2, 3
+
             query_params.extend([start_date, end_date])
             
-            # Note: asyncpg uses $1, $2, etc. for parameter substitution. 
-            # We need to adjust parameter numbering if channel_id is present.
-            if channel_id:
-                stmt = stmt.replace("$3", "$3").replace("$4", "$4") # No change needed if we add at the end
-            else: # If no channel_id, we need to re-number the date params
-                stmt = stmt.replace("$3", "$2").replace("$4", "$3")
+            final_stmt = main_query.format(
+                channels_query=channels_query, 
+                param_start=param_start, 
+                param_end=param_end
+            )
 
-
-            return await conn.fetch(stmt, *query_params)
+            # asyncpg fetchall() returns a list of Record objects, which behave like tuples
+            return await conn.fetch(final_stmt, *query_params)
