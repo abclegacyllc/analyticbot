@@ -19,7 +19,7 @@ async def main():
     db_pool = await create_pool()
     redis_conn = Redis.from_url(REDIS_URL)
 
-    # --- APScheduler Setup (Now much simpler) ---
+    # --- APScheduler Setup ---
     sqlalchemy_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://")
     jobstores = { 'default': SQLAlchemyJobStore(url=sqlalchemy_url) }
     scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
@@ -30,7 +30,6 @@ async def main():
     channel_repo = ChannelRepository(db_pool)
     analytics_repo = AnalyticsRepository(db_pool)
     guard_service = GuardService(redis_conn)
-    # The service is now simple and has no complex dependencies
     scheduler_service = SchedulerService(scheduler, scheduler_repo)
     analytics_service = AnalyticsService(bot, analytics_repo)
 
