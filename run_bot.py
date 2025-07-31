@@ -31,7 +31,7 @@ async def main():
     analytics_repo = AnalyticsRepository(db_pool)
     guard_service = GuardService(redis_conn)
     scheduler_service = SchedulerService(scheduler, scheduler_repo)
-    analytics_service = AnalyticsService(bot, analytics_repo)
+    analytics_service = AnalyticsService(bot, analytics_repo, scheduler_repo)
 
     # --- Dependency Injection ---
     user_handlers.user_repository = user_repo
