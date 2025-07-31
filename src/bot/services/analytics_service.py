@@ -25,12 +25,10 @@ class AnalyticsService:
         message_id = post_details["sent_message_id"]
 
         try:
-            # This is a special method to get views without being a channel member
             message_views_result = await self.bot.get_message_views(
                 chat_id=channel_id,
                 message_ids=[message_id]
             )
-            # The result is a list, we take the views of the first (and only) message
             return message_views_result[0].views
         except TelegramBadRequest as e:
             logger.error(f"Telegram API error fetching views for message {message_id} in channel {channel_id}: {e}")
