@@ -20,7 +20,7 @@ class SchedulerService:
             send_scheduled_message,
             trigger='date',
             run_date=schedule_time,
-            args=[post_id], # <-- Use args instead of kwargs
+            args=[post_id], # We only pass the simple, pickle-safe post_id
             id=job_id,
             misfire_grace_time=300
         )
