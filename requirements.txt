@@ -1,0 +1,7 @@
+aiogram[fastapi]
+asyncpg
+redis
+apscheduler
+python-dotenv
+aiogram-i18n
+Babel
