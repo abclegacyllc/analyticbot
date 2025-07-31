@@ -15,98 +15,69 @@ scheduler_service: SchedulerService = None
 channel_repository: ChannelRepository = None
 analytics_service: AnalyticsService = None
 
-# --- TEMPORARY COMMAND TO REGISTER A CHANNEL ---
+# --- CHANNEL MANAGEMENT ---
 @router.message(Command("add_channel"))
-async def add_channel_handler(message: types.Message):
-    """Temporary command to register a chat/channel in the DB."""
-    channel_id = message.chat.id
-    admin_id = message.from_user.id
-    await channel_repository.create_channel(channel_id=channel_id, admin_id=admin_id)
-    await message.reply(f"✅ Channel {channel_id} has been registered. You can now schedule posts.")
+async def add_channel_handler(message: types.Message, command: CommandObject):
+    if not command.args or not command.args.startswith('@'):
+        return await message.reply("Usage: /add_channel @your_channel_username")
+    
+    channel_username = command.args
+    try:
+        # Check if the bot can access the channel info (and is an admin)
+        channel = await message.bot.get_chat(chat_id=channel_username)
+    except Exception:
+        return await message.reply("Could not find that channel. Make sure the username is correct and the bot is an admin there.")
+    
+    await channel_repository.create_channel(channel_id=channel.id, admin_id=message.from_user.id)
+    await message.reply(f"✅ Channel '{channel.title}' (ID: {channel.id}) has been registered.")
 
+# --- GUARD MODULE (Placeholder) ---
+@router.message(Command("add_word", "remove_word", "list_words"))
+async def guard_commands_handler(message: types.Message):
+    await message.reply("Guard commands are being updated.")
 
-# --- GUARD MODULE COMMANDS ---
-@router.message(Command("add_word"))
-async def add_word_handler(message: types.Message, command: CommandObject):
-    if not command.args:
-        return await message.reply("Usage: /add_word <word_to_block>")
-    word = command.args
-    channel_id_to_manage = message.chat.id
-    await guard_service.add_word(channel_id_to_manage, word)
-    await message.reply(f"✅ Word '{word}' has been added to the blacklist.")
-
-@router.message(Command("remove_word"))
-async def remove_word_handler(message: types.Message, command: CommandObject):
-    if not command.args:
-        return await message.reply("Usage: /remove_word <word_to_remove>")
-    word = command.args
-    channel_id_to_manage = message.chat.id
-    await guard_service.remove_word(channel_id_to_manage, word)
-    await message.reply(f"✅ Word '{word}' has been removed from the blacklist.")
-
-@router.message(Command("list_words"))
-async def list_words_handler(message: types.Message):
-    channel_id_to_manage = message.chat.id
-    words = await guard_service.list_words(channel_id_to_manage)
-    if not words:
-        return await message.reply("ℹ️ The blacklist is empty.")
-    word_list = "\n".join(f"• {w}" for w in words)
-    await message.reply(f"🚫 Blacklisted words:\n{word_list}")
-
-
-# --- SCHEDULER MODULE COMMANDS ---
+# --- SCHEDULER & ANALYTICS ---
 @router.message(Command("schedule"))
 async def handle_schedule(message: types.Message, command: CommandObject):
     if command.args is None:
-        return await message.reply(
-            'Usage: /schedule "YYYY-MM-DD HH:MM" "Your post text"\n\n'
-            'Note: Both arguments must be in double quotes.'
-        )
-
+        return await message.reply('Usage: /schedule @channel_username "YYYY-MM-DD HH:MM" "text"')
     try:
         args = shlex.split(command.args)
-        if len(args) != 2:
-            raise ValueError("Incorrect number of arguments")
+        if len(args) != 3: raise ValueError()
+        channel_username, dt_str, text = args
         
-        dt_str, text = args
-        
+        # Verify the channel exists and is registered
+        try:
+            channel = await message.bot.get_chat(chat_id=channel_username)
+            db_channel = await channel_repository.get_channel_by_id(channel.id)
+            if not db_channel:
+                return await message.reply("This channel has not been registered. Use /add_channel first.")
+        except Exception:
+            return await message.reply(f"Could not find channel '{channel_username}'.")
+
         naive_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
         aware_dt = naive_dt.replace(tzinfo=timezone.utc)
+        if aware_dt < datetime.now(timezone.utc):
+            return await message.reply("The scheduled time cannot be in the past.")
 
-    except (ValueError, IndexError):
-        return await message.reply(
-            'Usage: /schedule "YYYY-MM-DD HH:MM" "Your post text"\n\n'
-            'Note: Time must be in UTC. Both arguments must be in double quotes.'
-        )
-    
-    if aware_dt < datetime.now(timezone.utc):
-        return await message.reply("The scheduled time cannot be in the past.")
+        await scheduler_service.schedule_post(channel_id=channel.id, text=text, schedule_time=aware_dt)
+        await message.reply(f"✅ Your message has been scheduled for channel '{channel.title}' at {aware_dt.strftime('%Y-%m-%d %H:%M %Z')}.")
 
-    channel_id = message.chat.id
-    await scheduler_service.schedule_post(
-        channel_id=channel_id,
-        text=text,
-        schedule_time=aware_dt
-    )
-    await message.reply(f"✅ Your message has been scheduled for {aware_dt.strftime('%Y-%m-%d %H:%M %Z')}.")
+    except ValueError:
+        return await message.reply('Usage: /schedule @channel_username "YYYY-MM-DD HH:MM" "text"')
 
-
-# --- ANALYTICS COMMAND ---
 @router.message(Command("views"))
 async def get_views_handler(message: types.Message, command: CommandObject):
     if command.args is None:
         return await message.reply("Usage: /views POST_ID")
-
     try:
         post_id = int(command.args)
     except ValueError:
         return await message.reply("Invalid post_id. It must be a number.")
-
-    # Pass the admin's ID to the service for the workaround
+    
     admin_id = message.from_user.id
     view_count = await analytics_service.get_post_views(post_id, admin_id)
-
     if view_count is None:
-        return await message.reply(f"Could not retrieve views for Post ID {post_id}. Please ensure the ID is correct and the post was sent successfully.")
+        return await message.reply(f"Could not retrieve views for Post ID {post_id}. Ensure the ID is correct and the post was sent from a channel.")
     
     await message.reply(f"📊 Post ID {post_id} has {view_count} views.")
