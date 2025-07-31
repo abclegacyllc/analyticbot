@@ -13,10 +13,7 @@ class SchedulerService:
         self.repository = repository
 
     async def schedule_post(self, channel_id: int, text: str, schedule_time: datetime) -> str:
-        """
-        Saves a post to the DB and schedules it for sending.
-        Returns the job_id.
-        """
+        """Saves a post to the DB and schedules it for sending."""
         post_id = await self.repository.create_scheduled_post(channel_id, text, schedule_time)
         job_id = str(post_id)
 
@@ -26,7 +23,7 @@ class SchedulerService:
             run_date=schedule_time,
             args=[post_id],
             id=job_id,
-            misfire_grace_time=300  # Allow job to run up to 5 minutes late
+            misfire_grace_time=300
         )
         logger.info(f"Scheduled job {job_id} for post {post_id} at {schedule_time}")
         return job_id
