@@ -91,7 +91,7 @@ async def handle_schedule(message: types.Message, command: CommandObject):
     await message.reply(f"✅ Your message has been scheduled for {aware_dt.strftime('%Y-%m-%d %H:%M %Z')}.")
 
 
-# --- NEW ANALYTICS COMMAND ---
+# --- ANALYTICS COMMAND ---
 @router.message(Command("views"))
 async def get_views_handler(message: types.Message, command: CommandObject):
     if command.args is None:
