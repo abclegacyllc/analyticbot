@@ -1,6 +1,6 @@
 import logging
 from src.bot.bot import dp, bot  # Import the shared dispatcher and bot instances
-from src.bot.database.repository import SchedulerRepository
+from src.bot.database.repositories import SchedulerRepository
 
 logger = logging.getLogger(__name__)
 
