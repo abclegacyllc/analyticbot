@@ -5,7 +5,8 @@ from src.bot.database.repository import SchedulerRepository
 
 logger = logging.getLogger(__name__)
 
-async def send_scheduled_message(bot: Bot, db_pool: asyncpg.Pool, post_id: int):
+# The order of arguments is changed here
+async def send_scheduled_message(post_id: int, bot: Bot, db_pool: asyncpg.Pool):
     """
     This is the standalone function that APScheduler will execute.
     """
