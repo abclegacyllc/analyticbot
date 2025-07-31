@@ -23,14 +23,14 @@ CREATE TABLE IF NOT EXISTS channels (
 CREATE TABLE IF NOT EXISTS scheduled_posts (
     post_id SERIAL PRIMARY KEY,
     channel_id BIGINT NOT NULL,
-    text TEXT NOT NULL,
+    text TEXT,
     schedule_time TIMESTAMPTZ NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
     media_path TEXT,
     button_config TEXT,
-    CONSTRAINT fk_channel
+    CONSTRAINT fk_post_to_channel
         FOREIGN KEY (channel_id)
-        REFERENCES channels(id)
+        REFERENCES channels(channel_id)
         ON DELETE CASCADE
 );
 
