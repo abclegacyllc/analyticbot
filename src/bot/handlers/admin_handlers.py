@@ -95,7 +95,8 @@ async def handle_schedule(message: types.Message, command: CommandObject):
 @router.message(Command("views"))
 async def get_views_handler(message: types.Message, command: CommandObject):
     if command.args is None:
-        return await message.reply("Usage: /views <post_id>")
+        # Use a format that is safe for HTML parse mode
+        return await message.reply("Usage: /views POST_ID")
 
     try:
         post_id = int(command.args)
