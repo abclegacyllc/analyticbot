@@ -1,9 +1,17 @@
+# run_bot.py
+
 import asyncio
 import logging
 from src.bot.bot import bot, dp
 from src.bot.handlers import user_handlers, admin_handlers
 from src.bot.database import create_pool
-from src.bot.database.repository import UserRepository, SchedulerRepository, ChannelRepository, AnalyticsRepository
+# --- UPDATED IMPORT PATH ---
+from src.bot.database.repositories import (
+    UserRepository, 
+    SchedulerRepository, 
+    ChannelRepository, 
+    AnalyticsRepository
+)
 from src.bot.services.guard_service import GuardService
 from src.bot.services.scheduler_service import SchedulerService
 from src.bot.services.analytics_service import AnalyticsService
@@ -20,12 +28,9 @@ async def main():
     redis_conn = Redis.from_url(REDIS_URL)
 
     # --- Inject dependencies into the Dispatcher context ---
-    # This is the key change to make the pool accessible globally
     dp['db_pool'] = db_pool
-    # The bot instance is already accessible via dp.bot or the imported bot object
 
     # --- APScheduler Setup ---
-    # Use psycopg2 for SQLAlchemy as it's synchronous
     sqlalchemy_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://")
     jobstores = { 'default': SQLAlchemyJobStore(url=sqlalchemy_url) }
     scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
