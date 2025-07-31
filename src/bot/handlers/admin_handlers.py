@@ -10,6 +10,16 @@ router = Router()
 # Placeholders for services, to be injected from run_bot.py
 guard_service: GuardService = None
 scheduler_service: SchedulerService = None
+channel_repository: ChannelRepository = None 
+
+# --- NEW TEMPORARY COMMAND ---
+@router.message(Command("add_channel"))
+async def add_channel_handler(message: types.Message):
+    """Temporary command to register a chat/channel in the DB."""
+    channel_id = message.chat.id
+    admin_id = message.from_user.id
+    await channel_repository.create_channel(channel_id=channel_id, admin_id=admin_id)
+    await message.reply(f"✅ Channel {channel_id} has been registered. You can now schedule posts.")
 
 # --- GUARD MODULE COMMANDS ---
 @router.message(Command("add_word"))
