@@ -1,3 +1,4 @@
+import shlex # Use the shlex library for robust parsing
 from aiogram import Router, types
 from aiogram.filters import Command
 from datetime import datetime, timezone
@@ -21,6 +22,7 @@ async def add_word_handler(message: types.Message):
     await guard_service.add_word(channel_id_to_manage, word)
     await message.reply(f"✅ Word '{word}' has been added to the blacklist.")
 
+# ... (other guard handlers remain the same) ...
 @router.message(Command("remove_word"))
 async def remove_word_handler(message: types.Message):
     try:
@@ -40,22 +42,28 @@ async def list_words_handler(message: types.Message):
     word_list = "\n".join(f"• {w}" for w in words)
     await message.reply(f"🚫 Blacklisted words:\n{word_list}")
 
+
 # --- SCHEDULER MODULE COMMANDS ---
 @router.message(Command("schedule"))
 async def handle_schedule(message: types.Message):
-    # Command format: /schedule "YYYY-MM-DD HH:MM" "Your post text"
-    parts = message.text.split(maxsplit=2)
-    if len(parts) < 3:
-        return await message.reply('Usage: /schedule "YYYY-MM-DD HH:MM" "Your post text"\n\nNote: Time must be provided in UTC.')
-
     try:
-        naive_dt_str = parts[1].strip('"')
-        naive_dt = datetime.strptime(naive_dt_str, "%Y-%m-%d %H:%M")
+        # shlex.split correctly handles arguments in quotes
+        args = shlex.split(message.text)
+        if len(args) != 3:
+            raise ValueError("Incorrect number of arguments")
+        
+        # args[0] is the command, args[1] is the datetime, args[2] is the text
+        dt_str = args[1]
+        text = args[2]
+        
+        naive_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
         aware_dt = naive_dt.replace(tzinfo=timezone.utc)
-    except ValueError:
-        return await message.reply("Invalid datetime format. Please use 'YYYY-MM-DD HH:MM' in quotes.")
 
-    text = parts[2].strip('"')
+    except (ValueError, IndexError):
+        return await message.reply(
+            'Usage: /schedule "YYYY-MM-DD HH:MM" "Your post text"\n\n'
+            'Note: Time must be in UTC. Both arguments must be in double quotes.'
+        )
     
     if aware_dt < datetime.now(timezone.utc):
         return await message.reply("The scheduled time cannot be in the past.")
