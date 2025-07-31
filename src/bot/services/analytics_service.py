@@ -1,9 +1,18 @@
+import logging
+from io import BytesIO
+from datetime import date, timedelta
+from typing import Optional
+
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
+from matplotlib import pyplot as plt, dates as mdates
+
+# Note: We need to import from the new repositories path
 from src.bot.database.repositories import AnalyticsRepository, SchedulerRepository
-import logging
+
 
 logger = logging.getLogger(__name__)
+
 
 class AnalyticsService:
     def __init__(self, bot: Bot, repository: AnalyticsRepository, scheduler_repository: SchedulerRepository):
@@ -11,48 +20,49 @@ class AnalyticsService:
         self.repository = repository
         self.scheduler_repository = scheduler_repository
 
-    async def get_post_views(self, post_id: int, admin_id: int) -> int | None:
-        """
-        Fetches the view count for a specific post using an invisible edit workaround.
-        """
-        post_details = await self.repository.get_post_details(post_id)
+    # ... existing get_post_views method ...
 
-        if not post_details or not post_details.get("sent_message_id"):
-            logger.warning(f"Post {post_id} not found or was not sent successfully.")
+    async def create_views_chart(
+        self, user_id: int, channel_id: Optional[int] = None, days: int = 30
+    ) -> Optional[BytesIO]:
+        """
+        Generates a line chart of total daily views for a user's channels.
+        Can be filtered by a specific channel_id.
+        """
+        daily_views = await self.repository.get_daily_views(user_id, days, channel_id)
+
+        if not daily_views:
             return None
 
-        channel_id = post_details["channel_id"]
-        message_id = post_details["sent_message_id"]
+        # Prepare data for plotting, filling in days with no views
+        end_date = date.today()
+        start_date = end_date - timedelta(days=days - 1)
+        all_dates = [start_date + timedelta(days=i) for i in range(days)]
         
-        # We need the original text to perform the harmless edit
-        full_post = await self.scheduler_repository.get_scheduled_post(post_id)
-        if not full_post:
-             return None
-        post_text = full_post.get("text")
+        views_dict = {d: v for d, v in daily_views}
+        views_data = [views_dict.get(d, 0) for d in all_dates]
 
-        # If there is no text, we can't edit, so we can't get views this way.
-        if not post_text:
-            logger.warning(f"Post {post_id} has no text to edit, cannot fetch views.")
-            return None
+        # Create the plot using matplotlib
+        plt.style.use('seaborn-v0_8-darkgrid')
+        fig, ax = plt.subplots(figsize=(12, 7))
 
-        try:
-            # Add a zero-width space to the end of the text to make it "different"
-            edited_text = post_text + "\u200B"
+        ax.plot(all_dates, views_data, marker='o', linestyle='-', color='deepskyblue')
+        ax.fill_between(all_dates, views_data, color='deepskyblue', alpha=0.1)
 
-            # Perform the invisible edit to get the updated message object
-            updated_message = await self.bot.edit_message_text(
-                text=edited_text,
-                chat_id=channel_id,
-                message_id=message_id
-            )
-            
-            # The view count is in this updated message object
-            return updated_message.views
-        except TelegramBadRequest as e:
-            logger.error(f"Telegram API error fetching views for message {message_id}: {e}")
-            # Revert to the original text if the edit fails for some other reason
-            await self.bot.edit_message_text(text=post_text, chat_id=channel_id, message_id=message_id)
-            return None
-        except Exception as e:
-            logger.error(f"An unexpected error occurred fetching views for post {post_id}: {e}")
-            return None
+        # Formatting the plot for a nice look
+        ax.set_title(f'Total Post Views Over Last {days} Days', fontsize=16, pad=20)
+        ax.set_xlabel('Date', fontsize=12)
+        ax.set_ylabel('Total Views', fontsize=12)
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
+        ax.xaxis.set_major_locator(mdates.DayLocator(interval=max(1, days // 7)))
+        fig.autofmt_xdate()
+        plt.grid(True, which='both', linestyle='--', linewidth=0.5)
+        plt.tight_layout()
+
+        # Save plot to a bytes buffer instead of a file
+        buf = BytesIO()
+        plt.savefig(buf, format='png', dpi=100)
+        buf.seek(0)
+        plt.close(fig)
+
+        return buf
