@@ -19,19 +19,26 @@ async def main():
     redis_conn = Redis.from_url(REDIS_URL)
 
     # --- APScheduler Setup ---
-    # Create a specific URL for SQLAlchemy using the psycopg2 synchronous driver
     sqlalchemy_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://")
     jobstores = {
         'default': SQLAlchemyJobStore(url=sqlalchemy_url)
     }
-    scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
+    # Pass the bot and db_pool to all jobs by default
+    job_defaults = {
+        'kwargs': {
+            'bot': bot,
+            'db_pool': db_pool
+        }
+    }
+    scheduler = AsyncIOScheduler(jobstores=jobstores, job_defaults=job_defaults, timezone="UTC")
 
     # --- Repositories and Services Instantiation ---
     user_repo = UserRepository(db_pool)
     scheduler_repo = SchedulerRepository(db_pool)
     channel_repo = ChannelRepository(db_pool)
     guard_service = GuardService(redis_conn)
-    scheduler_service = SchedulerService(scheduler, bot, scheduler_repo)
+    # The service no longer needs the bot or repository objects to do its work
+    scheduler_service = SchedulerService(scheduler, scheduler_repo)
 
     # --- Dependency Injection ---
     user_handlers.user_repository = user_repo
