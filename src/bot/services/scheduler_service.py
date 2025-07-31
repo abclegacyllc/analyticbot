@@ -2,7 +2,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from src.bot.database.repository import SchedulerRepository
 from datetime import datetime
 import logging
-from src.bot.tasks import send_scheduled_message # Import the standalone task
+from src.bot.tasks import send_scheduled_message
 
 logger = logging.getLogger(__name__)
 
@@ -17,10 +17,10 @@ class SchedulerService:
         job_id = str(post_id)
 
         self.scheduler.add_job(
-            send_scheduled_message, # Use the imported standalone function
+            send_scheduled_message,
             trigger='date',
             run_date=schedule_time,
-            kwargs={'post_id': post_id}, # Pass post_id as a keyword argument
+            args=[post_id], # <-- Use args instead of kwargs
             id=job_id,
             misfire_grace_time=300
         )
