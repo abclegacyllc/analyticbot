@@ -19,7 +19,13 @@ async def main():
     db_pool = await create_pool()
     redis_conn = Redis.from_url(REDIS_URL)
 
+    # --- Inject dependencies into the Dispatcher context ---
+    # This is the key change to make the pool accessible globally
+    dp['db_pool'] = db_pool
+    # The bot instance is already accessible via dp.bot or the imported bot object
+
     # --- APScheduler Setup ---
+    # Use psycopg2 for SQLAlchemy as it's synchronous
     sqlalchemy_url = DATABASE_URL.replace("postgresql://", "postgresql+psycopg2://")
     jobstores = { 'default': SQLAlchemyJobStore(url=sqlalchemy_url) }
     scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
@@ -31,10 +37,9 @@ async def main():
     analytics_repo = AnalyticsRepository(db_pool)
     guard_service = GuardService(redis_conn)
     scheduler_service = SchedulerService(scheduler, scheduler_repo)
-    # Inject scheduler_repo into AnalyticsService
     analytics_service = AnalyticsService(bot, analytics_repo, scheduler_repo)
 
-    # --- Dependency Injection ---
+    # --- Dependency Injection for Handlers (current method) ---
     user_handlers.user_repository = user_repo
     user_handlers.guard_service = guard_service
     admin_handlers.guard_service = guard_service
