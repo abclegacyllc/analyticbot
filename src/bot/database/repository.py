@@ -1,7 +1,10 @@
+# src/bot/database/repository.py
+
 import asyncpg
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
+# --- EXISTING UserRepository ---
 class UserRepository:
     def __init__(self, pool: asyncpg.Pool):
         self.pool = pool
@@ -19,6 +22,7 @@ class UserRepository:
             row = await conn.fetchrow("SELECT role FROM users WHERE user_id = $1", user_id)
             return row["role"] if row else None
 
+# --- EXISTING ChannelRepository ---
 class ChannelRepository:
     def __init__(self, pool: asyncpg.Pool):
         self.pool = pool
@@ -30,3 +34,28 @@ class ChannelRepository:
                 VALUES ($1, $2, $3, 'active')
                 ON CONFLICT (channel_id) DO NOTHING
             """, channel_id, admin_id, plan)
+
+# --- NEW SchedulerRepository ---
+class SchedulerRepository:
+    def __init__(self, pool: asyncpg.Pool):
+        self.pool = pool
+
+    async def create_scheduled_post(self, channel_id: int, text: str, schedule_time: datetime) -> int:
+        """Saves a new post to the database and returns its unique ID."""
+        async with self.pool.acquire() as conn:
+            row = await conn.fetchrow("""
+                INSERT INTO scheduled_posts (channel_id, text, schedule_time, status)
+                VALUES ($1, $2, $3, 'pending')
+                RETURNING post_id
+            """, channel_id, text, schedule_time)
+            return row["post_id"]
+
+    async def get_scheduled_post(self, post_id: int) -> Optional[Dict[str, Any]]:
+        """Retrieves a single scheduled post by its ID."""
+        async with self.pool.acquire() as conn:
+            return await conn.fetchrow("SELECT * FROM scheduled_posts WHERE post_id = $1", post_id)
+
+    async def update_post_status(self, post_id: int, status: str):
+        """Updates the status of a post (e.g., 'sent', 'failed')."""
+        async with self.pool.acquire() as conn:
+            await conn.execute("UPDATE scheduled_posts SET status = $1 WHERE post_id = $2", status, post_id)
