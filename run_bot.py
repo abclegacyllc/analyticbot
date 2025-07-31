@@ -12,6 +12,7 @@ from src.bot.database.repositories import (
 from src.bot.services.guard_service import GuardService
 from src.bot.services.scheduler_service import SchedulerService
 from src.bot.services.analytics_service import AnalyticsService
+from src.bot.middlewares.dependency_middleware import DependencyMiddleware # --- IMPORT NEW MIDDLEWARE ---
 from redis.asyncio import Redis
 from src.bot.config import REDIS_URL, DATABASE_URL
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -23,8 +24,6 @@ logger = logging.getLogger(__name__)
 async def main():
     db_pool = await create_pool()
     redis_conn = Redis.from_url(REDIS_URL)
-
-    # --- Inject dependencies into the Dispatcher context ---
     dp['db_pool'] = db_pool
 
     # --- APScheduler Setup ---
@@ -41,13 +40,20 @@ async def main():
     scheduler_service = SchedulerService(scheduler, scheduler_repo)
     analytics_service = AnalyticsService(bot, analytics_repo, scheduler_repo)
 
-    # --- Dependency Injection for Handlers (current method) ---
-    user_handlers.user_repository = user_repo
-    user_handlers.guard_service = guard_service
-    admin_handlers.guard_service = guard_service
-    admin_handlers.scheduler_service = scheduler_service
-    admin_handlers.channel_repository = channel_repo
-    admin_handlers.analytics_service = analytics_service
+    # --- REMOVED OLD DEPENDENCY INJECTION METHOD ---
+
+    # --- Register Middlewares ---
+    # Instantiate and register our new dependency middleware
+    dependency_middleware = DependencyMiddleware(
+        user_repo=user_repo,
+        channel_repo=channel_repo,
+        scheduler_repo=scheduler_repo,
+        analytics_repo=analytics_repo,
+        guard_service=guard_service,
+        scheduler_service=scheduler_service,
+        analytics_service=analytics_service,
+    )
+    dp.update.outer_middleware.register(dependency_middleware)
 
     # --- Router Registration ---
     dp.include_router(admin_handlers.router)
