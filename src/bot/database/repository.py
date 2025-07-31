@@ -1,5 +1,5 @@
 import asyncpg
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 class UserRepository:
@@ -12,7 +12,7 @@ class UserRepository:
                 INSERT INTO users (user_id, username, role, registration_date, is_banned, referrer_id)
                 VALUES ($1, $2, $3, $4, FALSE, $5)
                 ON CONFLICT (user_id) DO NOTHING
-            """, user_id, username, role, datetime.utcnow(), referrer_id)
+            """, user_id, username, role, datetime.now(timezone.utc), referrer_id)
 
     async def get_user_role(self, user_id: int) -> Optional[str]:
         async with self.pool.acquire() as conn:
@@ -30,4 +30,3 @@ class ChannelRepository:
                 VALUES ($1, $2, $3, 'active')
                 ON CONFLICT (channel_id) DO NOTHING
             """, channel_id, admin_id, plan)
-
