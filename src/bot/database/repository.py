@@ -1,5 +1,3 @@
-# src/bot/database/repository.py
-
 import asyncpg
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
