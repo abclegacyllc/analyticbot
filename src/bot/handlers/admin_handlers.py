@@ -4,15 +4,16 @@ from aiogram.filters import Command, CommandObject
 from datetime import datetime, timezone
 from src.bot.services.guard_service import GuardService
 from src.bot.services.scheduler_service import SchedulerService
+from src.bot.database.repository import ChannelRepository
 
 router = Router()
 
 # Placeholders for services, to be injected from run_bot.py
 guard_service: GuardService = None
 scheduler_service: SchedulerService = None
-channel_repository: ChannelRepository = None 
+channel_repository: ChannelRepository = None
 
-# --- NEW TEMPORARY COMMAND ---
+# --- TEMPORARY COMMAND TO REGISTER A CHANNEL ---
 @router.message(Command("add_channel"))
 async def add_channel_handler(message: types.Message):
     """Temporary command to register a chat/channel in the DB."""
@@ -20,6 +21,7 @@ async def add_channel_handler(message: types.Message):
     admin_id = message.from_user.id
     await channel_repository.create_channel(channel_id=channel_id, admin_id=admin_id)
     await message.reply(f"✅ Channel {channel_id} has been registered. You can now schedule posts.")
+
 
 # --- GUARD MODULE COMMANDS ---
 @router.message(Command("add_word"))
@@ -51,10 +53,11 @@ async def list_words_handler(message: types.Message):
     word_list = "\n".join(f"• {w}" for w in words)
     await message.reply(f"🚫 Blacklisted words:\n{word_list}")
 
+
 # --- SCHEDULER MODULE COMMANDS ---
 @router.message(Command("schedule"))
 async def handle_schedule(message: types.Message, command: CommandObject):
-    # This is the recommended aiogram way to get arguments
+    # Using CommandObject is the recommended aiogram way to get arguments
     if command.args is None:
         return await message.reply(
             'Usage: /schedule "YYYY-MM-DD HH:MM" "Your post text"\n\n'
@@ -62,13 +65,11 @@ async def handle_schedule(message: types.Message, command: CommandObject):
         )
 
     try:
-        # This line was missing. It parses the arguments from the command.
+        # shlex.split works reliably on the arguments string
         args = shlex.split(command.args)
-        
         if len(args) != 2:
             raise ValueError("Incorrect number of arguments")
         
-        # Now that 'args' exists, we can unpack it
         dt_str, text = args
         
         naive_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
