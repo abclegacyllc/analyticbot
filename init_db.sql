@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
     status TEXT NOT NULL DEFAULT 'pending',
     media_path TEXT,
     button_config TEXT,
+    sent_message_id BIGINT,
     CONSTRAINT fk_post_to_channel
         FOREIGN KEY (channel_id)
         REFERENCES channels(channel_id)
