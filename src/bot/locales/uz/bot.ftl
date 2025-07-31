@@ -18,3 +18,11 @@ guard-list-usage = 📝 Foydalanish: /list_words @kanal_nomi
 guard-list-header = 📋 "{ $channel_name }" kanali uchun taqiqlangan so'zlar ro'yxati:
 guard-list-empty = 📭 Bu kanal uchun taqiqlangan so'zlar ro'yxati bo'sh.
 guard-list-item = • { $word }
+
+# === Analytics Module ===
+# /stats command
+stats-usage = 📝 Foydalanish: /stats [@kanal_nomi]
+stats-generating = ⏳ Statistika tayyorlanmoqda, iltimos kuting...
+stats-caption-all = 📊 Barcha kanallaringiz uchun so'nggi 30 kunlik umumiy statistika diagrammasi.
+stats-caption-specific = 📊 { $channel_name } kanali uchun so'nggi 30 kunlik statistika diagrammasi.
+stats-no-data = 🤷‍♂️ Diagramma yaratish uchun yetarli ma'lumot topilmadi.
