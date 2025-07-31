@@ -38,9 +38,14 @@ class SchedulerService:
             return
 
         try:
-            await self.bot.send_message(chat_id=post["channel_id"], text=post["text"])
+            sent_message = await self.bot.send_message(
+                chat_id=post["channel_id"],
+                text=post["text"]
+            )
             await self.repository.update_post_status(post_id, "sent")
-            logger.info(f"Successfully sent post {post_id} to channel {post['channel_id']}")
+            # Save the message_id for analytics
+            await self.repository.set_sent_message_id(post_id, sent_message.message_id)
+            logger.info(f"Successfully sent post {post_id} (message_id: {sent_message.message_id}) to channel {post['channel_id']}")
         except Exception as e:
             await self.repository.update_post_status(post_id, "failed")
             logger.error(f"Failed to send post {post_id} to channel {post['channel_id']}: {e}")
