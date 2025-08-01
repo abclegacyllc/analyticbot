@@ -1,3 +1,19 @@
+CREATE TABLE IF NOT EXISTS scheduled_posts (
+    post_id SERIAL PRIMARY KEY,
+    channel_id BIGINT NOT NULL,
+    text TEXT,
+    schedule_time TIMESTAMPTZ NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    media_path TEXT,
+    button_config TEXT,
+    sent_message_id BIGINT,
+    views BIGINT, -- <-- ADD THIS NEW COLUMN
+    CONSTRAINT fk_post_to_channel
+        FOREIGN KEY (channel_id)
+        REFERENCES channels(channel_id)
+        ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS users (
     user_id BIGINT PRIMARY KEY,
     username TEXT,
