@@ -70,3 +70,19 @@ class AnalyticsRepository:
 
             # asyncpg fetchall() returns a list of Record objects, which behave like tuples
             return await conn.fetch(final_stmt, *query_params)
+
+# --- NEW METHODS FOR THE BACKGROUND TASK ---
+
+    async def get_posts_to_update_views(self) -> List[Dict[str, Any]]:
+        """
+        Gets all posts that have been sent but their views haven't been recorded yet,
+        or haven't been updated recently.
+        """
+        async with self.pool.acquire() as conn:
+            # For simplicity, we get all sent posts. This can be optimized later.
+            return await conn.fetch("SELECT post_id, admin_id FROM scheduled_posts WHERE status = 'sent'")
+
+    async def update_post_views(self, post_id: int, views: int):
+        """Updates the view count for a specific post."""
+        async with self.pool.acquire() as conn:
+            await conn.execute("UPDATE scheduled_posts SET views = $1 WHERE post_id = $2", views, post_id)
