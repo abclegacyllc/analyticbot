@@ -34,8 +34,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS channels (
     channel_id BIGINT PRIMARY KEY,
     admin_id BIGINT NOT NULL,
-    -- The 'plan' and 'status' columns were in the old model but are not used in the current repo logic.
-    -- They are removed for simplification. Plan is managed at the user level.
+    channel_name TEXT, -- <-- ADDED THIS LINE
     CONSTRAINT fk_channel_admin FOREIGN KEY (admin_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
