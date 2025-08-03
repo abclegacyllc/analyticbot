@@ -44,3 +44,13 @@ views-usage = 📝 Foydalanish: /views <POST_ID>
 views-invalid-id = ❗️ Post ID xato. U raqam bo'lishi kerak.
 views-not-found = 🤷‍♂️ Post ID { $post_id } uchun ko'rishlar sonini olib bo'lmadi. ID to'g'riligiga va ruxsatingiz borligiga ishonch hosil qiling.
 views-success = 📊 Post ID { $post_id } da { $view_count } ta ko'rishlar soni mavjud.
+
+# === /myplan command ===
+myplan-header = 📄 Sizning Obuna Rejangiz
+myplan-plan-name = Tarif: <b>{ $plan_name }</b>
+myplan-channels-limit = Kanallar: { $current } / { $max }
+myplan-channels-unlimited = Kanallar: { $current } / Cheksiz
+myplan-posts-limit = Shu oydagi postlar: { $current } / { $max }
+myplan-posts-unlimited = Shu oydagi postlar: { $current } / Cheksiz
+myplan-upgrade-prompt = Qo'shimcha imkoniyatlarga ega bo'lish uchun tarifingizni yangilashingiz mumkin.
+myplan-error = ❗️ Sizning rejangiz haqidagi ma'lumotlarni olib bo'lmadi. Iltimos, keyinroq qayta urinib ko'ring.
