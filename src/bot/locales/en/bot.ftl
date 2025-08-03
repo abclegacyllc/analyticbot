@@ -54,3 +54,5 @@ myplan-posts-limit = Posts this month: { $current } / { $max }
 myplan-posts-unlimited = Posts this month: { $current } / Unlimited
 myplan-upgrade-prompt = To get more features, you can upgrade your plan.
 myplan-error = ❗️ Could not retrieve your plan details. Please try again later.
+
+menu-button-dashboard = 🖥 Dashboard
