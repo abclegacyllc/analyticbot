@@ -26,7 +26,7 @@ async def cmd_start(
 
     # --- SET THE MENU BUTTON TO OPEN THE WEB APP ---
     # NOTE: We will replace this URL with our actual dashboard URL later
-    dashboard_url = "https://core.telegram.org/bots/webapps"
+    dashboard_url = "https://bookish-xylophone-jjwjj7vq7jxv24gj-5173.app.github.dev/"
     await bot.set_chat_menu_button(
         chat_id=message.chat.id,
         menu_button=MenuButtonWebApp(
