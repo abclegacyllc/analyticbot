@@ -43,19 +43,23 @@ async def get_and_verify_channel(
 async def add_channel_handler(
     message: types.Message,
     command: CommandObject,
-    channel_repo: ChannelRepository
+    channel_repo: ChannelRepository,
+    i18n: I18nContext # Added i18n
 ):
     if not command.args or not command.args.startswith('@'):
-        return await message.reply("Usage: /add_channel @your_channel_username")
+        # FIXED: Using i18n key
+        return await message.reply(i18n.get("add-channel-usage"))
     
     channel_username = command.args
     try:
         channel = await message.bot.get_chat(chat_id=channel_username)
     except Exception:
-        return await message.reply("Could not find that channel. Make sure the username is correct and the bot is an admin there.")
+        # FIXED: Using i18n key
+        return await message.reply(i18n.get("add-channel-not-found", channel_name=channel_username))
     
     await channel_repo.create_channel(channel_id=channel.id, admin_id=message.from_user.id)
-    await message.reply(f"✅ Channel '{channel.title}' (ID: {channel.id}) has been registered.")
+    # FIXED: Using i18n key
+    await message.reply(i18n.get("add-channel-success", channel_title=channel.title, channel_id=channel.id))
 
 
 # --- GUARD MODULE ---
@@ -140,23 +144,21 @@ async def get_stats_handler(
     channel_id: int | None = None
     channel_name: str | None = command.args
 
-    # If a channel username is provided, verify ownership
     if channel_name:
         if not channel_name.startswith('@'):
             return await message.reply(i18n.get("stats-usage"))
         
         channel_id = await get_and_verify_channel(message, channel_name, channel_repo, i18n)
         if not channel_id:
-            return # Error message is sent from the helper function
+            return
     
-    # Generate the chart
     chart_image = await analytics_service.create_views_chart(
         user_id=message.from_user.id,
         channel_id=channel_id
     )
 
     if chart_image:
-        photo = BufferedInputFile(chart_image.read(), filename="stats.png")
+        photo = types.BufferedInputFile(chart_image.read(), filename="stats.png")
         caption = (
             i18n.get("stats-caption-specific", channel_name=channel_name)
             if channel_name
@@ -165,60 +167,66 @@ async def get_stats_handler(
         await message.answer_photo(photo=photo, caption=caption)
     else:
         await message.answer(i18n.get("stats-no-data"))
-      
-        
+
+
 @router.message(Command("schedule"))
 async def handle_schedule(
     message: types.Message,
     command: CommandObject,
     channel_repo: ChannelRepository,
-    scheduler_service: SchedulerService
+    scheduler_service: SchedulerService,
+    i18n: I18nContext # Added i18n
 ):
     if command.args is None:
-        return await message.reply('Usage: /schedule @channel_username "YYYY-MM-DD HH:MM" "text"')
+        # FIXED: Using i18n key
+        return await message.reply(i18n.get("schedule-usage"))
     try:
         args = shlex.split(command.args)
         if len(args) != 3: raise ValueError()
+        
         channel_username, dt_str, text = args
         
-        try:
-            channel = await message.bot.get_chat(chat_id=channel_username)
-            db_channel = await channel_repo.get_channel_by_id(channel.id)
-            if not db_channel:
-                return await message.reply("This channel has not been registered. Use /add_channel first.")
-            if db_channel['admin_id'] != message.from_user.id:
-                 return await message.reply("You are not the owner of this channel.")
-        except Exception:
-            return await message.reply(f"Could not find channel '{channel_username}'.")
+        channel_id = await get_and_verify_channel(message, channel_username, channel_repo, i18n)
+        if not channel_id:
+            return # Error messages are handled inside the helper function
 
         naive_dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
         aware_dt = naive_dt.replace(tzinfo=timezone.utc)
+        
         if aware_dt < datetime.now(timezone.utc):
-            return await message.reply("The scheduled time cannot be in the past.")
+            # FIXED: Using i18n key
+            return await message.reply(i18n.get("schedule-past-time-error"))
 
-        await scheduler_service.schedule_post(channel_id=channel.id, text=text, schedule_time=aware_dt)
-        await message.reply(f"✅ Your message has been scheduled for channel '{channel.title}' at {aware_dt.strftime('%Y-%m-%d %H:%M %Z')}.")
+        await scheduler_service.schedule_post(channel_id=channel_id, text=text, schedule_time=aware_dt)
+        # FIXED: Using i18n key
+        await message.reply(i18n.get("schedule-success", channel_name=channel_username, schedule_time=aware_dt.strftime('%Y-%m-%d %H:%M %Z')))
 
     except ValueError:
-        return await message.reply('Usage: /schedule @channel_username "YYYY-MM-DD HH:MM" "text"')
+        # FIXED: Using i18n key
+        return await message.reply(i18n.get("schedule-usage"))
 
 
 @router.message(Command("views"))
 async def get_views_handler(
     message: types.Message,
     command: CommandObject,
-    analytics_service: AnalyticsService
+    analytics_service: AnalyticsService,
+    i18n: I18nContext # Added i18n
 ):
     if command.args is None:
-        return await message.reply("Usage: /views POST_ID")
+        # FIXED: Using i18n key
+        return await message.reply(i18n.get("views-usage"))
     try:
         post_id = int(command.args)
     except ValueError:
-        return await message.reply("Invalid post_id. It must be a number.")
+        # FIXED: Using i18n key
+        return await message.reply(i18n.get("views-invalid-id"))
     
     admin_id = message.from_user.id
     view_count = await analytics_service.get_post_views(post_id, admin_id)
     if view_count is None:
-        return await message.reply(f"Could not retrieve views for Post ID {post_id}. Ensure the ID is correct and the post was sent from a channel.")
+        # FIXED: Using i18n key
+        return await message.reply(i18n.get("views-not-found", post_id=post_id))
     
-    await message.reply(f"📊 Post ID {post_id} has {view_count} views.")
+    # FIXED: Using i18n key
+    await message.reply(i18n.get("views-success", post_id=post_id, view_count=view_count))
