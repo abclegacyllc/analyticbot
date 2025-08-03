@@ -44,3 +44,13 @@ views-usage = 📝 Usage: /views <POST_ID>
 views-invalid-id = ❗️ Invalid post_id. It must be a number.
 views-not-found = 🤷‍♂️ Could not retrieve views for Post ID { $post_id }. Ensure the ID is correct and you have permission.
 views-success = 📊 Post ID { $post_id } has { $view_count } views.
+
+# === /myplan command ===
+myplan-header = 📄 Your Subscription Plan
+myplan-plan-name = Plan: <b>{ $plan_name }</b>
+myplan-channels-limit = Channels: { $current } / { $max }
+myplan-channels-unlimited = Channels: { $current } / Unlimited
+myplan-posts-limit = Posts this month: { $current } / { $max }
+myplan-posts-unlimited = Posts this month: { $current } / Unlimited
+myplan-upgrade-prompt = To get more features, you can upgrade your plan.
+myplan-error = ❗️ Could not retrieve your plan details. Please try again later.
