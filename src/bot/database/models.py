@@ -34,3 +34,13 @@ class BlacklistWord:
     id: int
     channel_id: int
     word: str
+
+@dataclass
+class SubscriptionStatus:
+    """A data class to hold the user's current subscription status and usage."""
+    plan_name: str
+    max_channels: int
+    current_channels: int
+    max_posts_per_month: int
+    current_posts_this_month: int
+    
