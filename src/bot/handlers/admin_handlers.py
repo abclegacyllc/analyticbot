@@ -44,21 +44,24 @@ async def add_channel_handler(
     message: types.Message,
     command: CommandObject,
     channel_repo: ChannelRepository,
-    i18n: I18nContext # Added i18n
+    i18n: I18nContext
 ):
     if not command.args or not command.args.startswith('@'):
-        # FIXED: Using i18n key
         return await message.reply(i18n.get("add-channel-usage"))
     
     channel_username = command.args
     try:
         channel = await message.bot.get_chat(chat_id=channel_username)
     except Exception:
-        # FIXED: Using i18n key
         return await message.reply(i18n.get("add-channel-not-found", channel_name=channel_username))
     
-    await channel_repo.create_channel(channel_id=channel.id, admin_id=message.from_user.id)
-    # FIXED: Using i18n key
+    # --- UPDATED LINE ---
+    # Now we pass the channel name (title) to the repository method
+    await channel_repo.create_channel(
+        channel_id=channel.id, 
+        admin_id=message.from_user.id,
+        channel_name=channel.title # <-- PASSING THE NAME
+    )
     await message.reply(i18n.get("add-channel-success", channel_title=channel.title, channel_id=channel.id))
 
 
