@@ -1,3 +1,4 @@
+from typing import Optional
 from src.bot.config import Settings
 from src.bot.database.repositories import (
     PlanRepository,
@@ -5,6 +6,9 @@ from src.bot.database.repositories import (
     SchedulerRepository,
     UserRepository
 )
+# Import the new dataclass
+from src.bot.database.models import SubscriptionStatus
+
 
 class SubscriptionService:
     def __init__(
@@ -62,3 +66,30 @@ class SubscriptionService:
 
         posts_this_month = await self.scheduler_repo.count_user_posts_this_month(user_id)
         return posts_this_month < max_posts
+
+    # --- NEW METHOD FOR /myplan COMMAND ---
+    async def get_user_subscription_status(self, user_id: int) -> Optional[SubscriptionStatus]:
+        """
+        Gathers all information about the user's current plan, limits, and usage.
+        Returns a dataclass object or None if the user/plan is not found.
+        """
+        user_plan_name = await self.user_repo.get_user_plan(user_id)
+        if not user_plan_name:
+            return None
+
+        plan_details = await self.plan_repo.get_plan_by_name(user_plan_name)
+        if not plan_details:
+            return None # Should not happen if DB is consistent
+
+        # Get current usage stats
+        current_channels = await self.channel_repo.count_user_channels(user_id)
+        current_posts = await self.scheduler_repo.count_user_posts_this_month(user_id)
+
+        # Create and return the status object
+        return SubscriptionStatus(
+            plan_name=plan_details['plan_name'],
+            max_channels=plan_details['max_channels'],
+            current_channels=current_channels,
+            max_posts_per_month=plan_details['max_posts_per_month'],
+            current_posts_this_month=current_posts,
+        )
