@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     # Bot token is stored as a SecretStr to prevent accidental logging
     BOT_TOKEN: SecretStr
 
+    # This acts as a master switch to enable/disable plan limit checks
+    ENFORCE_PLAN_LIMITS: bool = False
+
     # Database and Redis URLs are validated to ensure they have the correct format
     DATABASE_URL: PostgresDsn
     REDIS_URL: RedisDsn
