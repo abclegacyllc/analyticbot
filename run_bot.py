@@ -2,18 +2,19 @@ import asyncio
 import logging
 from src.bot.bot import bot, dp
 from src.bot.handlers import user_handlers, admin_handlers
-from src.bot.database import create_pool
+# UPDATED IMPORT: Pointing to the new db.py file
+from src.bot.database.db import create_pool 
 from src.bot.database.repositories import (
     UserRepository, 
     SchedulerRepository, 
     ChannelRepository, 
     AnalyticsRepository,
-    PlanRepository # <-- QO'SHILDI
+    PlanRepository
 )
 from src.bot.services.guard_service import GuardService
 from src.bot.services.scheduler_service import SchedulerService
 from src.bot.services.analytics_service import AnalyticsService
-from src.bot.services.subscription_service import SubscriptionService # <-- QO'SHILDI
+from src.bot.services.subscription_service import SubscriptionService
 from src.bot.middlewares.dependency_middleware import DependencyMiddleware
 from redis.asyncio import Redis
 from src.bot.config import settings
@@ -33,11 +34,10 @@ async def main():
     scheduler_repo = SchedulerRepository(db_pool)
     channel_repo = ChannelRepository(db_pool)
     analytics_repo = AnalyticsRepository(db_pool)
-    plan_repo = PlanRepository(db_pool) # <-- QO'SHILDI
+    plan_repo = PlanRepository(db_pool)
     
     guard_service = GuardService(redis_conn)
     analytics_service = AnalyticsService(bot, analytics_repo, scheduler_repo)
-    # <-- YANGI SERVIS YARATILDI -->
     subscription_service = SubscriptionService(settings, user_repo, plan_repo, channel_repo, scheduler_repo)
 
     db_url_str = settings.DATABASE_URL.unicode_string()
@@ -55,11 +55,11 @@ async def main():
         channel_repo=channel_repo,
         scheduler_repo=scheduler_repo,
         analytics_repo=analytics_repo,
-        plan_repo=plan_repo, # <-- QO'SHILDI
+        plan_repo=plan_repo,
         guard_service=guard_service,
         scheduler_service=scheduler_service,
         analytics_service=analytics_service,
-        subscription_service=subscription_service, # <-- QO'SHILDI
+        subscription_service=subscription_service,
     )
     dp.update.outer_middleware.register(dependency_middleware)
 
