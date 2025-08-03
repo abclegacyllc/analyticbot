@@ -1,4 +1,5 @@
-import json # <-- ADDED IMPORT
+import json
+from datetime import datetime, timezone  
 from aiogram import Router, F, types, Bot
 from aiogram.types import Message, WebAppInfo, MenuButtonWebApp
 from aiogram.filters import CommandStart, Command
@@ -8,6 +9,7 @@ from aiogram_i18n import I18nContext
 from src.bot.database.repositories import UserRepository
 from src.bot.services.guard_service import GuardService
 from src.bot.services.subscription_service import SubscriptionService
+from src.bot.services.scheduler_service import SchedulerService  # <-- QO'SHILDI
 
 
 router = Router()
