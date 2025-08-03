@@ -1,12 +1,2 @@
-from .user_repository import UserRepository
-from .channel_repository import ChannelRepository
-from .scheduler_repository import SchedulerRepository
-from .analytics_repository import AnalyticsRepository
-from .plan_repository import PlanRepository # <-- Added
-__all__ = [
-    "UserRepository",
-    "ChannelRepository",
-    "SchedulerRepository",
-    "AnalyticsRepository",
-    "PlanRepository", # <-- Added
-]
+# This file makes the 'database' directory a Python package.
+# It is intentionally left blank as imports are handled in the 'repositories' sub-package.
