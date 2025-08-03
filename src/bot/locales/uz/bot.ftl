@@ -19,6 +19,10 @@ guard-list-header = 📋 "{ $channel_name }" kanali uchun taqiqlangan so'zlar ro
 guard-list-empty = 📭 Bu kanal uchun taqiqlangan so'zlar ro'yxati bo'sh.
 guard-list-item = • { $word }
 
+# === Monetization Limits ===
+limit-reached-channels = 🚫 Siz '{ $plan_name }' tarif rejasidagi kanallar chegarasiga yetdingiz. Ko'proq kanal qo'shish uchun tarifingizni yangilang.
+limit-reached-posts = 🚫 Siz '{ $plan_name }' tarif rejasidagi oylik postlar chegarasiga yetdingiz. Ko'proq post rejalashtirish uchun tarifingizni yangilang.
+
 # === Analytics Module ===
 # /stats command
 stats-usage = 📝 Foydalanish: /stats [@kanal_nomi]
