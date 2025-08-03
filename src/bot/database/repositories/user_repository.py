@@ -32,7 +32,7 @@ class UserRepository:
             row = await conn.fetchrow("SELECT role FROM users WHERE user_id = $1", user_id)
             return row["role"] if row else None
 
-    # --- YANGI METOD ---
+    # --- NEW METOD ---
     async def get_user_plan(self, user_id: int) -> Optional[str]:
         """Retrieves the user's current subscription plan."""
         async with self.pool.acquire() as conn:
