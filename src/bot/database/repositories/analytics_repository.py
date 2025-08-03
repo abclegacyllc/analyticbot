@@ -2,9 +2,6 @@ import asyncpg
 from typing import Optional, Dict, Any, List, Tuple
 from datetime import date, timedelta
 
-# This file does not need models for its raw SQL queries,
-# so the problematic import has been removed.
-
 class AnalyticsRepository:
     def __init__(self, pool: asyncpg.Pool):
         self.pool = pool
@@ -68,19 +65,22 @@ class AnalyticsRepository:
                 param_end=param_end
             )
 
-            # asyncpg fetchall() returns a list of Record objects, which behave like tuples
             return await conn.fetch(final_stmt, *query_params)
 
-# --- NEW METHODS FOR THE BACKGROUND TASK ---
-
+    # --- UPDATED METHOD FOR THE BACKGROUND TASK ---
     async def get_posts_to_update_views(self) -> List[Dict[str, Any]]:
         """
-        Gets all posts that have been sent but their views haven't been recorded yet,
-        or haven't been updated recently.
+        Gets all sent posts, joining with channels to get the admin_id
+        for permission checks during view fetching.
         """
         async with self.pool.acquire() as conn:
-            # For simplicity, we get all sent posts. This can be optimized later.
-            return await conn.fetch("SELECT post_id, admin_id FROM scheduled_posts WHERE status = 'sent'")
+            # FIXED a bug here: joined with 'channels' to get the correct admin_id
+            return await conn.fetch("""
+                SELECT p.post_id, c.admin_id
+                FROM scheduled_posts p
+                JOIN channels c ON p.channel_id = c.channel_id
+                WHERE p.status = 'sent'
+            """)
 
     async def update_post_views(self, post_id: int, views: int):
         """Updates the view count for a specific post."""
