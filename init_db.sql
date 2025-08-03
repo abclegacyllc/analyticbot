@@ -1,3 +1,36 @@
+CREATE TABLE IF NOT EXISTS plans (
+    plan_name TEXT PRIMARY KEY,
+    max_channels INT NOT NULL,
+    max_posts_per_month INT NOT NULL
+);
+
+-- DEFAULT PLANS
+-- We use -1 to represent "unlimited"
+INSERT INTO plans (plan_name, max_channels, max_posts_per_month) VALUES
+('free', 1, 10) ON CONFLICT(plan_name) DO NOTHING;
+
+INSERT INTO plans (plan_name, max_channels, max_posts_per_month) VALUES
+('pro', 5, 100) ON CONFLICT(plan_name) DO NOTHING;
+
+INSERT INTO plans (plan_name, max_channels, max_posts_per_month) VALUES
+('premium', -1, -1) ON CONFLICT(plan_name) DO NOTHING;
+
+
+-- UPDATED users TABLE
+CREATE TABLE IF NOT EXISTS users (
+    user_id BIGINT PRIMARY KEY,
+    username TEXT,
+    role TEXT NOT NULL DEFAULT 'admin',
+    registration_date TIMESTAMP WITH TIME ZONE NOT NULL,
+    is_banned BOOLEAN NOT NULL DEFAULT FALSE,
+    referrer_id BIGINT,
+    plan TEXT NOT NULL DEFAULT 'free', -- <-- ADDED COLUMN
+    CONSTRAINT fk_user_plan FOREIGN KEY (plan) REFERENCES plans(plan_name), -- <-- ADDED CONSTRAINT
+    CONSTRAINT fk_referrer FOREIGN KEY (referrer_id)
+        REFERENCES users(user_id)
+        ON DELETE SET NULL
+);
+
 CREATE TABLE IF NOT EXISTS scheduled_posts (
     post_id SERIAL PRIMARY KEY,
     channel_id BIGINT NOT NULL,
