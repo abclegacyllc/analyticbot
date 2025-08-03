@@ -2,17 +2,17 @@ from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
 
-# Import all your services and repositories
 from src.bot.services.guard_service import GuardService
 from src.bot.services.scheduler_service import SchedulerService
 from src.bot.services.analytics_service import AnalyticsService
+from src.bot.services.subscription_service import SubscriptionService # <-- Added
 from src.bot.database.repositories import (
     UserRepository,
     ChannelRepository,
     SchedulerRepository,
-    AnalyticsRepository
+    AnalyticsRepository,
+    PlanRepository # <-- Added
 )
-
 
 class DependencyMiddleware(BaseMiddleware):
     def __init__(
@@ -21,18 +21,21 @@ class DependencyMiddleware(BaseMiddleware):
         channel_repo: ChannelRepository,
         scheduler_repo: SchedulerRepository,
         analytics_repo: AnalyticsRepository,
+        plan_repo: PlanRepository, # <-- QO'SHILDI
         guard_service: GuardService,
         scheduler_service: SchedulerService,
         analytics_service: AnalyticsService,
+        subscription_service: SubscriptionService, # <-- Added
     ):
-        # Store all dependencies
         self.user_repo = user_repo
         self.channel_repo = channel_repo
         self.scheduler_repo = scheduler_repo
         self.analytics_repo = analytics_repo
+        self.plan_repo = plan_repo # <-- QO'SHILDI
         self.guard_service = guard_service
         self.scheduler_service = scheduler_service
         self.analytics_service = analytics_service
+        self.subscription_service = subscription_service # <-- Added
 
     async def __call__(
         self,
@@ -40,13 +43,14 @@ class DependencyMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: Dict[str, Any],
     ) -> Any:
-        # Add dependencies to the data dictionary, which is then passed to the handler
         data["user_repo"] = self.user_repo
         data["channel_repo"] = self.channel_repo
         data["scheduler_repo"] = self.scheduler_repo
         data["analytics_repo"] = self.analytics_repo
+        data["plan_repo"] = self.plan_repo # <-- QO'SHILDI
         data["guard_service"] = self.guard_service
         data["scheduler_service"] = self.scheduler_service
         data["analytics_service"] = self.analytics_service
+        data["subscription_service"] = self.subscription_service # <-- Added
         
         return await handler(event, data)
