@@ -1,0 +1,58 @@
+.post-creator {
+  width: 100%;
+  margin-top: 24px;
+  padding: 20px;
+  box-sizing: border-box;
+  background-color: var(--tg-theme-secondary-bg-color, #1c1c1d);
+  border-radius: 12px;
+  text-align: left;
+}
+
+.post-creator h2 {
+  margin-top: 0;
+  margin-bottom: 20px;
+  color: var(--tg-theme-text-color, #ffffff);
+  text-align: center;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: var(--tg-theme-hint-color, #aaa);
+}
+
+.post-creator textarea,
+.post-creator select,
+.post-creator input[type="datetime-local"] {
+  width: 100%;
+  padding: 12px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  border: 1px solid var(--tg-theme-hint-color, #888);
+  background-color: var(--tg-theme-bg-color, #242424);
+  color: var(--tg-theme-text-color, #ffffff);
+  font-size: 1em;
+  font-family: inherit;
+}
+
+.post-creator textarea {
+  resize: vertical; /* Allow vertical resizing */
+  min-height: 120px;
+}
+
+.post-creator select,
+.post-creator input {
+  height: 48px;
+}
+
+.post-creator textarea:focus,
+.post-creator select:focus,
+.post-creator input:focus {
+  outline: none;
+  border-color: var(--tg-theme-link-color, #646cff);
+}
