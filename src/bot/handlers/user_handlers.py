@@ -1,15 +1,15 @@
 from aiogram import Router, F, types
 from aiogram.types import Message
-from aiogram.filters import CommandStart
+from aiogram.filters import CommandStart, Command
 from aiogram_i18n import I18nContext
 
 # Import necessary repository and service classes for type hinting
 from src.bot.database.repositories import UserRepository
 from src.bot.services.guard_service import GuardService
+from src.bot.services.subscription_service import SubscriptionService
+
 
 router = Router()
-
-# NO MORE GLOBAL PLACEHOLDERS
 
 @router.message(CommandStart())
 async def cmd_start(
@@ -26,17 +26,51 @@ async def cmd_start(
     )
 
 
+# --- NEW HANDLER FOR /myplan ---
+@router.message(Command("myplan"))
+async def my_plan_handler(
+    message: Message,
+    i18n: I18nContext,
+    subscription_service: SubscriptionService, # Dependency injected
+):
+    status = await subscription_service.get_user_subscription_status(message.from_user.id)
+    
+    if not status:
+        return await message.answer(i18n.get("myplan-error"))
+
+    # Build the response message text
+    text = [f"<b>{i18n.get('myplan-header')}</b>\n"]
+    text.append(i18n.get("myplan-plan-name", plan_name=status.plan_name.upper()))
+    
+    # Format channel usage string
+    if status.max_channels == -1:
+        text.append(i18n.get("myplan-channels-unlimited", current=status.current_channels))
+    else:
+        text.append(i18n.get("myplan-channels-limit", current=status.current_channels, max=status.max_channels))
+        
+    # Format post usage string
+    if status.max_posts_per_month == -1:
+        text.append(i18n.get("myplan-posts-unlimited", current=status.current_posts_this_month))
+    else:
+        text.append(i18n.get("myplan-posts-limit", current=status.current_posts_this_month, max=status.max_posts_per_month))
+
+    # Join all parts and send the message
+    await message.answer("\n".join(text))
+    
+
 @router.message(F.text)
 async def check_blacklist_handler(
     message: Message,
     guard_service: GuardService # Dependency injected by middleware
 ):
     # This handler checks for blacklisted words in messages
-    is_blocked = await guard_service.is_blocked(message.chat.id, message.text)
-    
-    if is_blocked:
-        try:
-            await message.delete()
-        except Exception:
-            # Bot might not have deletion rights in the chat
-            pass
+    # Make sure this handler only triggers in channels/groups, not in private chat
+    if message.chat.type in ["group", "supergroup", "channel"]:
+        is_blocked = await guard_service.is_blocked(message.chat.id, message.text)
+        
+        if is_blocked:
+            try:
+                await message.delete()
+            except Exception:
+                # Bot might not have deletion rights in the chat
+                pass
