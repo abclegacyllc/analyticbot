@@ -19,6 +19,10 @@ guard-list-header = 📋 Blacklisted words for channel "{ $channel_name }":
 guard-list-empty = 📭 The blacklist for this channel is empty.
 guard-list-item = • { $word }
 
+# === Monetization Limits ===
+limit-reached-channels = 🚫 You have reached your channel limit for the '{ $plan_name }' plan. Please upgrade to add more channels.
+limit-reached-posts = 🚫 You have reached your monthly post limit for the '{ $plan_name }' plan. Please upgrade to schedule more posts.
+
 # === Analytics Module ===
 # /stats command
 stats-usage = 📝 Usage: /stats [@channel_username]
