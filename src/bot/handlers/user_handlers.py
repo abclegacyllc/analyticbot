@@ -1,57 +1,78 @@
 import json
-from datetime import datetime, timezone  
+from datetime import datetime, timezone # <-- ADDED timezone
 from aiogram import Router, F, types, Bot
-from aiogram.types import Message, WebAppInfo, MenuButtonWebApp
+# --- ADDED IMPORTS for answerWebAppQuery ---
+from aiogram.types import Message, WebAppInfo, MenuButtonWebApp, InlineQueryResultArticle, InputTextMessageContent
 from aiogram.filters import CommandStart, Command
 from aiogram_i18n import I18nContext
 
-# Import necessary repository and service classes for type hinting
-from src.bot.database.repositories import UserRepository
+from src.bot.database.repositories import UserRepository, ChannelRepository # <-- ADDED ChannelRepository
 from src.bot.services.guard_service import GuardService
+from src.bot.services.scheduler_service import SchedulerService # <-- ADDED SchedulerService
 from src.bot.services.subscription_service import SubscriptionService
-from src.bot.services.scheduler_service import SchedulerService  # <-- QO'SHILDI
 
 
 router = Router()
 
 # --- UPDATED HANDLER FOR DATA FROM WEB APP ---
 @router.message(F.web_app_data)
-async def handle_web_app_data(message: Message, i18n: I18nContext, scheduler_service: SchedulerService):
+async def handle_web_app_data(
+    message: Message, 
+    i18n: I18nContext, 
+    bot: Bot, # <-- ADDED bot instance
+    channel_repo: ChannelRepository, # <-- ADDED channel_repo
+    scheduler_service: SchedulerService, # <-- ADDED scheduler_service
+):
     """
     This handler receives data sent from the Telegram Web App.
     """
     data = json.loads(message.web_app_data.data)
-    
-    if data.get('type') == 'new_post':
+    query_id = message.web_app_data.query_id # Get the query_id for the response
+
+    # --- HANDLE CHANNEL LIST REQUEST ---
+    if data.get('type') == 'get_channels':
+        user_channels = await channel_repo.get_user_channels(message.from_user.id)
+        
+        # Format channels for sending to the web app
+        channels_payload = [
+            {"id": str(ch['channel_id']), "name": ch['channel_name']} for ch in user_channels
+        ]
+        
+        # Send the channel list back to the TWA as a JSON string
+        result = InlineQueryResultArticle(
+            id=query_id, # Must be unique, so we use the query_id
+            title="Channels Response",
+            input_message_content=InputTextMessageContent(message_text="."), # Required but not shown
+            description=json.dumps(channels_payload) # <-- OUR DATA PAYLOAD
+        )
+        
+        await bot.answer_web_app_query(query_id, results=[result])
+        return # Stop processing after sending the channel list
+
+    # --- HANDLE NEW POST SUBMISSION ---
+    elif data.get('type') == 'new_post':
         try:
             channel_id = int(data.get('channel_id'))
             post_text = data.get('text', 'No text provided')
-            # The browser sends datetime in "YYYY-MM-DDTHH:MM" format
-            # We need to parse it into a datetime object
             naive_dt = datetime.fromisoformat(data.get('schedule_time'))
-            # Make it timezone-aware (UTC)
             aware_dt = naive_dt.replace(tzinfo=timezone.utc)
 
-            # --- REAL SCHEDULING ---
-            # Now, instead of just confirming, we use our existing SchedulerService
             await scheduler_service.schedule_post(
                 channel_id=channel_id, 
                 text=post_text, 
                 schedule_time=aware_dt
             )
             
-            # Send success message to the user
             await message.answer(
                 i18n.get(
                     "schedule-success", 
-                    channel_name=f"ID {channel_id}", # We'll get the real name later
+                    channel_name=f"ID {channel_id}",
                     schedule_time=aware_dt.strftime('%Y-%m-%d %H:%M %Z')
                 )
             )
 
-        except (ValueError, TypeError) as e:
-            # Handle cases where data is missing or in wrong format
-            await message.answer(f"Error processing data: {e}")
+        except (ValueError, TypeError, KeyError) as e:
+            await message.answer(f"Error processing post data: {e}")
             
     else:
         await message.answer(i18n.get('twa-data-unknown'))
