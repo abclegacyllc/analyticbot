@@ -56,3 +56,12 @@ myplan-upgrade-prompt = Qo'shimcha imkoniyatlarga ega bo'lish uchun tarifingizni
 myplan-error = ❗️ Sizning rejangiz haqidagi ma'lumotlarni olib bo'lmadi. Iltimos, keyinroq qayta urinib ko'ring.
 
 menu-button-dashboard = 🖥 Boshqaruv
+
+# TWA data handling
+twa-data-received-post = ✅ Veb-ilovadan post ma'lumotlari qabul qilindi. Matn:
+twa-data-unknown = 🤷‍♂️ Veb-ilovadan noma'lum formatdagi ma'lumot keldi.
+
+twa-data-received-post = ✅ Post ma'lumotlari qabul qilindi. Rejalashtirishga tayyor:
+    - Kanal IDsi: { $channel_id }
+    - Reja vaqti: { $schedule_time }
+    - Matn: <pre>{ $text }</pre>
