@@ -11,8 +11,8 @@ class SchedulerRepository:
         async with self.pool.acquire() as conn:
             row = await conn.fetchrow(
                 """
-                INSERT INTO scheduled_posts (channel_id, text, schedule_time, status) 
-                VALUES ($1, $2, $3, 'pending') 
+                INSERT INTO scheduled_posts (channel_id, text, schedule_time, status)
+                VALUES ($1, $2, $3, 'pending')
                 RETURNING post_id
                 """,
                 channel_id, text, schedule_time
@@ -33,3 +33,17 @@ class SchedulerRepository:
         """Saves the message_id of a sent post for analytics."""
         async with self.pool.acquire() as conn:
             await conn.execute("UPDATE scheduled_posts SET sent_message_id = $1 WHERE post_id = $2", message_id, post_id)
+
+    # --- NEW METOD ---
+    async def count_user_posts_this_month(self, user_id: int) -> int:
+        """Counts how many posts a user has scheduled in the current month."""
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(
+                """
+                SELECT COUNT(*) FROM scheduled_posts sp
+                JOIN channels c ON sp.channel_id = c.channel_id
+                WHERE c.admin_id = $1
+                AND sp.schedule_time >= date_trunc('month', CURRENT_DATE)
+                """,
+                user_id
+            )
