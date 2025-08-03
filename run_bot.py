@@ -2,7 +2,6 @@ import asyncio
 import logging
 from src.bot.bot import bot, dp
 from src.bot.handlers import user_handlers, admin_handlers
-# UPDATED IMPORT: Pointing to the new db.py file
 from src.bot.database.db import create_pool 
 from src.bot.database.repositories import (
     UserRepository, 
@@ -63,7 +62,14 @@ async def main():
     )
     dp.update.outer_middleware.register(dependency_middleware)
 
-    scheduler.add_job(update_all_post_views, trigger='interval', hours=1, id='update_views_job')
+    # --- Add the job, but replace it if it already exists ---
+    scheduler.add_job(
+        update_all_post_views, 
+        trigger='interval', 
+        hours=1, 
+        id='update_views_job',
+        replace_existing=True  # <-- THE FIX IS HERE
+    )
 
     dp.include_router(admin_handlers.router)
     dp.include_router(user_handlers.router)
@@ -75,9 +81,12 @@ async def main():
         await dp.start_polling(bot)
     finally:
         logger.info("Shutting down...")
-        scheduler.shutdown()
+        # The scheduler now shuts down gracefully
+        if scheduler.running:
+            scheduler.shutdown()
         await db_pool.close()
-        await redis_conn.close()
+        # Use .aclose() for async redis client
+        await redis_conn.aclose()
         await dp.storage.close()
 
 if __name__ == "__main__":
