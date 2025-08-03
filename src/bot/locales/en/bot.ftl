@@ -56,3 +56,12 @@ myplan-upgrade-prompt = To get more features, you can upgrade your plan.
 myplan-error = ❗️ Could not retrieve your plan details. Please try again later.
 
 menu-button-dashboard = 🖥 Dashboard
+
+# TWA data handling
+twa-data-received-post = ✅ Post data received from the web app. Here is the text:
+twa-data-unknown = 🤷‍♂️ Received unknown data format from the web app.
+
+twa-data-received-post = ✅ Post data received. Ready to schedule:
+    - Channel ID: { $channel_id }
+    - Schedule Time: { $schedule_time }
+    - Text: <pre>{ $text }</pre>
