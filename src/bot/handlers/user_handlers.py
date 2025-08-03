@@ -69,7 +69,7 @@ async def cmd_start(
     )
 
     # Set the menu button
-    dashboard_url = "https://bookish-xylophone-jjwjj7vq7jxv24gj-5173.app.github.dev"
+    dashboard_url = "https://jubilant-enigma-x5q55p7vpwrr3vp56-5173.app.github.dev/"
     await bot.set_chat_menu_button(
         chat_id=message.chat.id,
         menu_button=MenuButtonWebApp(
