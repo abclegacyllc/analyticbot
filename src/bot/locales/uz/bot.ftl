@@ -54,3 +54,5 @@ myplan-posts-limit = Shu oydagi postlar: { $current } / { $max }
 myplan-posts-unlimited = Shu oydagi postlar: { $current } / Cheksiz
 myplan-upgrade-prompt = Qo'shimcha imkoniyatlarga ega bo'lish uchun tarifingizni yangilashingiz mumkin.
 myplan-error = ❗️ Sizning rejangiz haqidagi ma'lumotlarni olib bo'lmadi. Iltimos, keyinroq qayta urinib ko'ring.
+
+menu-button-dashboard = 🖥 Boshqaruv
