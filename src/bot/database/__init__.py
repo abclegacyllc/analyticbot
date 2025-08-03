@@ -1,5 +1,3 @@
-# src/bot/database/repositories/__init__.py
-
 from .user_repository import UserRepository
 from .channel_repository import ChannelRepository
 from .scheduler_repository import SchedulerRepository
