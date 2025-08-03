@@ -1,8 +1,13 @@
-import asyncpg
-# Import the single settings object
-from src.bot.config import settings
+from .user_repository import UserRepository
+from .channel_repository import ChannelRepository
+from .scheduler_repository import SchedulerRepository
+from .analytics_repository import AnalyticsRepository
+from .plan_repository import PlanRepository
 
-async def create_pool():
-    # This function creates the database connection pool
-    # Pydantic validates the URL format, so we can use it with confidence
-    return await asyncpg.create_pool(settings.DATABASE_URL.unicode_string())
+__all__ = [
+    "UserRepository",
+    "ChannelRepository",
+    "SchedulerRepository",
+    "AnalyticsRepository",
+    "PlanRepository",
+]
