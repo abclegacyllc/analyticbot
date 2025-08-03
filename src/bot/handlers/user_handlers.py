@@ -12,24 +12,46 @@ from src.bot.services.subscription_service import SubscriptionService
 
 router = Router()
 
-# --- NEW HANDLER FOR DATA FROM WEB APP ---
+# --- UPDATED HANDLER FOR DATA FROM WEB APP ---
 @router.message(F.web_app_data)
-async def handle_web_app_data(message: Message, i18n: I18nContext):
+async def handle_web_app_data(message: Message, i18n: I18nContext, scheduler_service: SchedulerService):
     """
     This handler receives data sent from the Telegram Web App.
     """
-    # Parse the JSON string sent from the React app
     data = json.loads(message.web_app_data.data)
     
-    # Check the data type we defined in the React app
     if data.get('type') == 'new_post':
-        post_text = data.get('text', 'No text provided')
-        
-        # For now, just confirm receipt of the data to the user
-        response_text = i18n.get('twa-data-received-post') + f"\n\n<pre>{post_text}</pre>"
-        await message.answer(response_text)
+        try:
+            channel_id = int(data.get('channel_id'))
+            post_text = data.get('text', 'No text provided')
+            # The browser sends datetime in "YYYY-MM-DDTHH:MM" format
+            # We need to parse it into a datetime object
+            naive_dt = datetime.fromisoformat(data.get('schedule_time'))
+            # Make it timezone-aware (UTC)
+            aware_dt = naive_dt.replace(tzinfo=timezone.utc)
+
+            # --- REAL SCHEDULING ---
+            # Now, instead of just confirming, we use our existing SchedulerService
+            await scheduler_service.schedule_post(
+                channel_id=channel_id, 
+                text=post_text, 
+                schedule_time=aware_dt
+            )
+            
+            # Send success message to the user
+            await message.answer(
+                i18n.get(
+                    "schedule-success", 
+                    channel_name=f"ID {channel_id}", # We'll get the real name later
+                    schedule_time=aware_dt.strftime('%Y-%m-%d %H:%M %Z')
+                )
+            )
+
+        except (ValueError, TypeError) as e:
+            # Handle cases where data is missing or in wrong format
+            await message.answer(f"Error processing data: {e}")
+            
     else:
-        # Handle other data types in the future
         await message.answer(i18n.get('twa-data-unknown'))
 
 
