@@ -46,11 +46,11 @@ const PostCreator = ({ channels, isLoading, onPostScheduled }) => {
       onPostScheduled();
     };
 
-    mainButton.on('click', handleSendData);
+    mainButton.onClick(handleSendData);
 
     // Cleanup the event listener
     return () => {
-        mainButton.off('click', handleSendData);
+        mainButton.offClick(handleSendData);
     };
   }, [postText, channelId, scheduleTime, onPostScheduled, mainButton]);
 
