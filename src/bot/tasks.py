@@ -2,8 +2,10 @@ import logging
 import asyncio
 from aiogram import Bot
 
-# The task no longer needs to import dp
-# from src.bot.bot import dp, bot 
+# --- NEW IMPORTS ---
+from src.bot.config import settings
+from src.bot.database.db import create_pool
+# --- END NEW IMPORTS ---
 
 from src.bot.database.repositories import SchedulerRepository, AnalyticsRepository
 from src.bot.services.analytics_service import AnalyticsService
@@ -12,17 +14,16 @@ logger = logging.getLogger(__name__)
 
 
 async def send_scheduled_message(
-    # Dependencies are now passed directly to the job
     bot: Bot, 
     db_pool,
     post_id: int,
 ):
     """
-    Executes a scheduled job to send a message.
+    This function is called by the scheduler when a post is due.
+    It's not run as a persistent background job, so it can still receive dependencies.
     """
     logger.info(f"Executing job for post_id: {post_id}")
     repo = SchedulerRepository(db_pool)
-
     try:
         post = await repo.get_scheduled_post(post_id)
         if not post or post['status'] != 'pending':
@@ -42,21 +43,22 @@ async def send_scheduled_message(
         logger.error(f"Failed to send post {post_id}: {e}", exc_info=True)
 
 
-async def update_all_post_views(
-    # Dependencies are now passed directly to the job
-    bot: Bot, 
-    db_pool,
-):
+async def update_all_post_views():
     """
-    A background job that periodically fetches view counts for all sent posts.
+    A self-sufficient background job that periodically fetches view counts.
+    It creates its own connections and can be safely pickled.
     """
     logger.info("Starting background task: update_all_post_views")
     
-    analytics_repo = AnalyticsRepository(db_pool)
-    scheduler_repo = SchedulerRepository(db_pool) # analytics_service needs this
-    analytics_service = AnalyticsService(bot, analytics_repo, scheduler_repo)
-
+    # --- FIX IS HERE: Create temporary connections inside the task ---
+    temp_bot = Bot(token=settings.BOT_TOKEN.get_secret_value())
+    temp_pool = await create_pool()
+    
     try:
+        analytics_repo = AnalyticsRepository(temp_pool)
+        scheduler_repo = SchedulerRepository(temp_pool)
+        analytics_service = AnalyticsService(temp_bot, analytics_repo, scheduler_repo)
+
         posts_to_update = await analytics_repo.get_posts_to_update_views()
         logger.info(f"Found {len(posts_to_update)} posts to update views for.")
 
@@ -77,3 +79,7 @@ async def update_all_post_views(
 
     except Exception as e:
         logger.error(f"Error during update_all_post_views task: {e}", exc_info=True)
+    finally:
+        # --- IMPORTANT: Always close temporary connections ---
+        await temp_pool.close()
+        await (await temp_bot.get_session()).close()
