@@ -1,5 +1,3 @@
-# FILE: run_bot.py
-
 import asyncio
 import logging
 from redis.asyncio import Redis
@@ -66,7 +64,7 @@ async def main():
     scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
     scheduler_service = SchedulerService(scheduler, scheduler_repo)
 
-    # 7. Pass dependencies to handlers via middleware
+    # 7. Pass dependencies to handlers
     dp.update.outer_middleware.register(DependencyMiddleware(
         user_repo=user_repo,
         channel_repo=channel_repo,
