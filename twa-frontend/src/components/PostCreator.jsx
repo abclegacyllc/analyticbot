@@ -7,11 +7,12 @@ const PostCreator = ({ channels, isLoading, pendingMedia, onPostScheduled }) => 
   const [postText, setPostText] = useState('');
   const [channelId, setChannelId] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
-  
+
   const mainButton = webApp.MainButton;
 
-  // TUZATISH: Bu effekt endi faqat kanallar birinchi marta yuklanganda ishlaydi
-  // va tanlangan kanalni qayta-qayta o'zgartirib yubormaydi.
+  // --- THIS IS THE CORRECTED LOGIC ---
+  // This now correctly sets the first channel ONLY when the channels
+  // first load and no channel has been selected yet.
   useEffect(() => {
     if (!isLoading && channels.length > 0 && !channelId) {
       setChannelId(channels[0].id);
@@ -57,7 +58,7 @@ const PostCreator = ({ channels, isLoading, pendingMedia, onPostScheduled }) => 
   return (
     <div className="post-creator">
       <h2>Create New Post</h2>
-      
+
       <div className="form-group">
         <label htmlFor="channel-select">Channel:</label>
         <select 
