@@ -1,19 +1,26 @@
 import logging
-import asyncio # <-- ADDED IMPORT
-from src.bot.bot import dp, bot
-# --- ADDED IMPORTS FOR THE NEW TASK ---
+import asyncio
+from aiogram import Bot
+
+# The task no longer needs to import dp
+# from src.bot.bot import dp, bot 
+
 from src.bot.database.repositories import SchedulerRepository, AnalyticsRepository
 from src.bot.services.analytics_service import AnalyticsService
 
 logger = logging.getLogger(__name__)
 
 
-async def send_scheduled_message(post_id: int):
+async def send_scheduled_message(
+    # Dependencies are now passed directly to the job
+    bot: Bot, 
+    db_pool,
+    post_id: int,
+):
     """
     Executes a scheduled job to send a message.
     """
     logger.info(f"Executing job for post_id: {post_id}")
-    db_pool = dp['db_pool']
     repo = SchedulerRepository(db_pool)
 
     try:
@@ -34,20 +41,20 @@ async def send_scheduled_message(post_id: int):
         await repo.update_post_status(post_id, "failed")
         logger.error(f"Failed to send post {post_id}: {e}", exc_info=True)
 
-        
-# --- NEW BACKGROUND TASK TO UPDATE VIEW COUNTS ---
 
-async def update_all_post_views():
+async def update_all_post_views(
+    # Dependencies are now passed directly to the job
+    bot: Bot, 
+    db_pool,
+):
     """
-    A background job that periodically fetches view counts for all sent posts
-    and updates the database.
+    A background job that periodically fetches view counts for all sent posts.
     """
     logger.info("Starting background task: update_all_post_views")
     
-    # Retrieve dependencies from the dispatcher context
-    db_pool = dp['db_pool']
-    analytics_service: AnalyticsService = dp['analytics_service']
     analytics_repo = AnalyticsRepository(db_pool)
+    scheduler_repo = SchedulerRepository(db_pool) # analytics_service needs this
+    analytics_service = AnalyticsService(bot, analytics_repo, scheduler_repo)
 
     try:
         posts_to_update = await analytics_repo.get_posts_to_update_views()
@@ -58,14 +65,12 @@ async def update_all_post_views():
             post_id = post['post_id']
             admin_id = post['admin_id']
             
-            # Use the existing service method to fetch views from Telegram
             current_views = await analytics_service.get_post_views(post_id, admin_id)
 
             if current_views is not None:
                 await analytics_repo.update_post_views(post_id, current_views)
                 updated_count += 1
             
-            # Be respectful to Telegram API: wait a bit between requests
             await asyncio.sleep(1) 
 
         logger.info(f"Successfully updated view counts for {updated_count} posts.")
