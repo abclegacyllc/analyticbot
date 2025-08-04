@@ -86,12 +86,8 @@ async def main():
         trigger='interval', 
         hours=1, 
         id='update_views_job',
-        replace_existing=True,
-        # --- FIX IS HERE: Pass dependencies to the task ---
-        kwargs={
-            "bot": bot,
-            "db_pool": db_pool
-        }
+        replace_existing=True
+        # --- FIX IS HERE: Remove the entire 'kwargs' block ---
     )
 
     # 9. Register routers
