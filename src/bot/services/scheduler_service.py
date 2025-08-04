@@ -19,14 +19,31 @@ class SchedulerService:
         self.scheduler = scheduler
         self.repository = repository
 
-    async def schedule_post(self, channel_id: int, text: str, schedule_time: datetime) -> str:
-        """Saves a post to the DB and schedules it for sending."""
-        post_id = await self.repository.create_scheduled_post(channel_id, text, schedule_time)
+    async def schedule_post(
+        self, 
+        channel_id: int, 
+        schedule_time: datetime, 
+        text: Optional[str] = None,
+        file_id: Optional[str] = None,
+        file_type: Optional[str] = None
+    ) -> str:
+        """Saves a post (text or media) to the DB and schedules it for sending."""
+        # A post must have either text or a file
+        if not text and not file_id:
+            raise ValueError("Post must have either text or a file.")
+
+        post_id = await self.repository.create_scheduled_post(
+            channel_id=channel_id,
+            schedule_time=schedule_time,
+            text=text,
+            file_id=file_id,
+            file_type=file_type
+        )
         job_id = str(post_id)
 
         # We must pass the bot and a database pool connection to the job
         # so it can function when it runs in the background.
-        db_pool = await create_pool() # Create a fresh pool for the job
+        db_pool = await create_pool() 
 
         self.scheduler.add_job(
             send_scheduled_message,
