@@ -1,63 +1,108 @@
-import { useEffect, useState } from 'react';
-import './App.css'; // We will use this for custom styles
+import { useEffect, useState, useCallback } from 'react';
+import PostCreator from './components/PostCreator';
+import ScheduledPostsList from './components/ScheduledPostsList'; // <-- Import the new component
+import './App.css';
+
+const webApp = window.Telegram.WebApp;
 
 function App() {
-  const [user, setUser] = useState(null);
-  // This object is made available by the script we added in index.html
-  const webApp = window.Telegram.WebApp;
+  // State for the Post Creator
+  const [channels, setChannels] = useState([]);
+  const [isCreatorLoading, setIsCreatorLoading] = useState(true);
 
-  useEffect(() => {
-    // This function is called when the component is first loaded
-    if (webApp) {
-      webApp.ready(); // Let Telegram know the web app is ready
+  // State for the Scheduled Posts List
+  const [scheduledPosts, setScheduledPosts] = useState([]);
+  const [isListLoading, setIsListLoading] = useState(true);
 
-      // Set the user state from the data sent by Telegram
-      if (webApp.initDataUnsafe?.user) {
-        setUser(webApp.initDataUnsafe.user);
-      }
-      
-      // Expand the app to full screen
-      webApp.expand();
-
-      // Optional: Change the background color to match the Telegram theme
-      if (webApp.themeParams.bg_color) {
-        document.body.style.backgroundColor = webApp.themeParams.bg_color;
-      }
+  // --- FUNCTION TO FETCH DATA FROM THE BOT ---
+  const fetchData = useCallback((requestType) => {
+    if (requestType === 'get_channels') {
+      setIsCreatorLoading(true);
     }
-  }, []); // The empty array means this effect runs only once
+    if (requestType === 'get_scheduled_posts') {
+      setIsListLoading(true);
+    }
+    webApp.sendData(JSON.stringify({ type: requestType }));
+  }, []);
 
-  // A simple loading state
-  if (!user) {
-    return (
-      <div className="app-container">
-        <h1>Loading...</h1>
-      </div>
-    );
-  }
+  // --- FUNCTION TO DELETE A POST ---
+  const handleDeletePost = useCallback((postId) => {
+    webApp.showAlert(`Are you sure you want to delete post ${postId}?`, (isConfirmed) => {
+        if (isConfirmed) {
+            // Optimistically update the UI by removing the post immediately
+            setScheduledPosts(prevPosts => prevPosts.filter(p => p.id !== postId));
+            // Send the delete request to the backend
+            webApp.sendData(JSON.stringify({ type: 'delete_post', post_id: postId }));
+        }
+    });
+  }, []);
 
-  // The main view after user data is loaded
+
+  // --- MAIN EFFECT TO HANDLE RESPONSES FROM THE BOT ---
+  useEffect(() => {
+    const handleQueryResponse = (response) => {
+      try {
+        const data = JSON.parse(response.data[0].description);
+        const queryType = response.data[0].title; // We'll use the title to differentiate
+
+        if (queryType === "Channels Response") {
+          setChannels(data);
+          setIsCreatorLoading(false);
+        } else if (queryType === "Scheduled Posts Response") {
+          setScheduledPosts(data);
+          setIsListLoading(false);
+        }
+      } catch (error) {
+        console.error("Failed to parse data:", error);
+        setIsCreatorLoading(false);
+        setIsListLoading(false);
+      }
+    };
+
+    webApp.onEvent('webAppQueryResponse', handleQueryResponse);
+    
+    // Initial data fetch when the app loads
+    webApp.ready();
+    fetchData('get_channels');
+    fetchData('get_scheduled_posts');
+
+    // Cleanup listener on component unmount
+    return () => {
+      webApp.offEvent('webAppQueryResponse', handleQueryResponse);
+    };
+  }, [fetchData]);
+
+  // --- A callback for the PostCreator to trigger a refresh ---
+  const onPostScheduled = useCallback(() => {
+    // Show a confirmation and then refresh the list
+    webApp.showAlert('Your post has been scheduled successfully!');
+    // Add a small delay to give the backend time to process
+    setTimeout(() => fetchData('get_scheduled_posts'), 500);
+  }, [fetchData]);
+
+
   return (
     <div className="app-container">
-      <div className="header">
-        <h1>Dashboard</h1>
-        <p className="welcome-message">
-          Salom, <strong>{user.first_name}!</strong>
-        </p>
-      </div>
+      <h1>Bot Dashboard</h1>
       
-      <div className="user-info">
-        <h3>Your Telegram Info:</h3>
-        <p><strong>ID:</strong> <code>{user.id}</code></p>
-        <p><strong>Username:</strong> @{user.username || 'not available'}</p>
-        <p><strong>Language:</strong> {user.language_code}</p>
-      </div>
-
-      <div className="hint">
-        <p>Bu bizning kelajakdagi Dashboardimizning boshlang'ich nuqtasi.</p>
-        <p>Keyingi qadamda bu yerga "Yangi Post Yaratish" bo'limini qo'shamiz.</p>
-      </div>
+      {/* --- Pass data and handlers down to components --- */}
+      
+      <PostCreator 
+        channels={channels}
+        isLoading={isCreatorLoading}
+        onPostScheduled={onPostScheduled}
+      />
+      
+      {isListLoading ? (
+        <p>Loading scheduled posts...</p>
+      ) : (
+        <ScheduledPostsList
+          posts={scheduledPosts}
+          onDelete={handleDeletePost}
+        />
+      )}
     </div>
   );
 }
 
-export default App
+export default App;
