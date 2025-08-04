@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import SecretStr, RedisDsn, PostgresDsn
+from pydantic import SecretStr, RedisDsn, PostgresDsn, AnyHttpUrl
 
 class Settings(BaseSettings):
     """
@@ -7,7 +7,6 @@ class Settings(BaseSettings):
     Pydantic automatically reads them from environment variables or a .env file.
     It also validates the data types.
     """
-    # model_config tells pydantic to load variables from a .env file
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
     # Bot token is stored as a SecretStr to prevent accidental logging
@@ -19,6 +18,10 @@ class Settings(BaseSettings):
     # Database and Redis URLs are validated to ensure they have the correct format
     DATABASE_URL: PostgresDsn
     REDIS_URL: RedisDsn
+
+    # --- NEW LINE ---
+    # Telegram Web App URL, validated as a proper URL
+    TWA_HOST_URL: AnyHttpUrl
 
     # I18n settings
     SUPPORTED_LOCALES: list[str] = ["en", "uz"]
