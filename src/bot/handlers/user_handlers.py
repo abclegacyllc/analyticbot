@@ -146,6 +146,7 @@ async def my_plan_handler(
 
     await message.answer("\n".join(text))
 
+
 @router.message(F.PHOTO | F.VIDEO)
 async def handle_media(message: Message, state: FSMContext, i18n: I18nContext):
     """
