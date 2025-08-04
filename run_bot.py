@@ -80,13 +80,18 @@ async def main():
         subscription_service=subscription_service,
     ))
 
-    # 8. Setup background jobs
+     # 8. Setup background jobs
     scheduler.add_job(
         update_all_post_views, 
         trigger='interval', 
         hours=1, 
         id='update_views_job',
-        replace_existing=True
+        replace_existing=True,
+        # --- FIX IS HERE: Pass dependencies to the task ---
+        kwargs={
+            "bot": bot,
+            "db_pool": db_pool
+        }
     )
 
     # 9. Register routers
