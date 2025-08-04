@@ -65,3 +65,5 @@ twa-data-received-post = ✅ Post data received. Ready to schedule:
     - Channel ID: { $channel_id }
     - Schedule Time: { $schedule_time }
     - Text: <pre>{ $text }</pre>
+
+media-received-success = ✅ Media received! Now open the dashboard to schedule it.
