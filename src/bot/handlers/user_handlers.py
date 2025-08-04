@@ -8,7 +8,7 @@ from aiogram_i18n import I18nContext
 # --- NEW IMPORT ---
 # Import the central settings object
 from src.bot.config import settings
-from src.bot.database.repositories import UserRepository, ChannelRepository
+from src.bot.database.repositories import UserRepository, ChannelRepository, SchedulerRepository
 from src.bot.services.guard_service import GuardService
 from src.bot.services.scheduler_service import SchedulerService
 from src.bot.services.subscription_service import SubscriptionService
