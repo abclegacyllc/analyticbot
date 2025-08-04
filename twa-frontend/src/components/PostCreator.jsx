@@ -2,72 +2,58 @@ import React, { useState, useEffect } from 'react';
 import './PostCreator.css';
 
 const webApp = window.Telegram.WebApp;
-const mainButton = webApp.MainButton;
 
-const PostCreator = () => {
+// We pass channels, isLoading, and the new callback as props
+const PostCreator = ({ channels, isLoading, onPostScheduled }) => {
   const [postText, setPostText] = useState('');
-  const [channels, setChannels] = useState([]); // Start with an empty array
-  const [channelId, setChannelId] = useState(''); // Start with no channel selected
+  const [channelId, setChannelId] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
-  const [isLoading, setIsLoading] = useState(true); // To show a loading state
+  
+  const mainButton = webApp.MainButton;
 
-  // --- NEW LOGIC TO FETCH CHANNELS ---
+  // When channels are loaded, select the first one by default
   useEffect(() => {
-    // 1. Define a function to handle the response from the bot
-    const handleQueryResponse = (data) => {
-      // Check if the received data is not empty
-      if (data.data) {
-        try {
-          // The channel list is in the 'description' of the first result item
-          const receivedChannels = JSON.parse(data.data[0].description);
-          setChannels(receivedChannels);
-          // If there are channels, select the first one by default
-          if (receivedChannels.length > 0) {
-            setChannelId(receivedChannels[0].id);
-          }
-        } catch (error) {
-          console.error("Failed to parse channels data:", error);
-          webApp.showAlert("Could not load your channels.");
-        }
-      }
-      setIsLoading(false);
-      // Remove the event listener after getting the data to avoid duplicates
-      webApp.offEvent('webAppQueryResponse', handleQueryResponse);
-    };
+    if (!isLoading && channels.length > 0) {
+      setChannelId(channels[0].id);
+    }
+  }, [isLoading, channels]);
 
-    // 2. Add an event listener to wait for the bot's response
-    webApp.onEvent('webAppQueryResponse', handleQueryResponse);
-
-    // 3. Send a request to the bot to get the channel list
-    webApp.sendData(JSON.stringify({ type: 'get_channels' }));
-
-    // Cleanup listener on component unmount
-    return () => {
-      webApp.offEvent('webAppQueryResponse', handleQueryResponse);
-    };
-  }, []); // The empty array ensures this runs only once when the component loads
-
-  // --- LOGIC TO CONTROL THE MAIN BUTTON ---
+  // Logic to control the main button
   useEffect(() => {
     if (postText.trim() !== '' && channelId && scheduleTime) {
-      mainButton.setText('Schedule Post');
-      mainButton.show();
+      mainButton.setParams({
+        text: 'Schedule Post',
+        color: '#2481CC', // A nice blue color
+        is_visible: true,
+        is_active: true,
+      });
     } else {
       mainButton.hide();
     }
-  }, [postText, channelId, scheduleTime]);
+  }, [postText, channelId, scheduleTime, mainButton]);
 
-  // --- LOGIC TO SEND DATA TO BOT ---
-  const handleSendData = () => {
-    const dataToSend = {
-      type: 'new_post',
-      text: postText,
-      channel_id: channelId,
-      schedule_time: scheduleTime,
+  // Logic to send data to the bot
+  useEffect(() => {
+    const handleSendData = () => {
+      const dataToSend = {
+        type: 'new_post',
+        text: postText,
+        channel_id: channelId,
+        schedule_time: scheduleTime,
+      };
+      webApp.sendData(JSON.stringify(dataToSend));
+      // Call the callback function passed from App.jsx
+      onPostScheduled();
     };
-    webApp.sendData(JSON.stringify(dataToSend));
-  };
-  mainButton.onClick(handleSendData);
+
+    mainButton.on('click', handleSendData);
+
+    // Cleanup the event listener
+    return () => {
+        mainButton.off('click', handleSendData);
+    };
+  }, [postText, channelId, scheduleTime, onPostScheduled, mainButton]);
+
 
   return (
     <div className="post-creator">
@@ -79,7 +65,7 @@ const PostCreator = () => {
           id="channel-select"
           value={channelId} 
           onChange={(e) => setChannelId(e.target.value)}
-          disabled={isLoading} // Disable while loading
+          disabled={isLoading}
         >
           {isLoading ? (
             <option>Loading channels...</option>
@@ -90,7 +76,7 @@ const PostCreator = () => {
               </option>
             ))
           ) : (
-            <option>No channels found</option>
+            <option>No channels found. Use /add_channel in the bot.</option>
           )}
         </select>
       </div>
