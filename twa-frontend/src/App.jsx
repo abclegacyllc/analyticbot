@@ -13,48 +13,34 @@ function App() {
     const [isLoading, setIsLoading] = useState(true);
 
     const fetchData = useCallback(() => {
-        console.log("Requesting data from bot...");
+        console.log("Requesting initial data...");
         setIsLoading(true);
         webApp.sendData(JSON.stringify({ type: 'get_initial_data' }));
     }, []);
 
-    const handleDeletePost = useCallback((postId) => {
-        webApp.showAlert(`Are you sure you want to delete post ${postId}?`, (isConfirmed) => {
-            if (isConfirmed) {
-                webApp.sendData(JSON.stringify({ type: 'delete_post', post_id: postId }));
-                // Ma'lumotni qayta yuklash uchun 500ms kutamiz
-                setTimeout(fetchData, 500); 
-            }
-        });
-    }, [fetchData]);
-
     useEffect(() => {
         const handleNewMessage = (event) => {
             const messageText = event.data;
-            console.log("Received message from bot:", messageText);
+            console.log("Received raw message from bot:", messageText);
 
-            if (messageText && messageText.includes('__TWA_RESPONSE__')) {
-                try {
-                    const parts = messageText.replace(/<pre>|<\/pre>/g, '').split('||');
-                    const responseType = parts[1];
-                    const data = JSON.parse(parts[2]);
+            // --- JAVOBNI QABUL QILISH MANTIG'INI TO'LIQ O'ZGARTIRDIK ---
+            try {
+                // Botdan kelgan javob to'g'ridan-to'g'ri JSON bo'lishi kerak
+                const response = JSON.parse(messageText);
+                console.log("Parsed JSON successfully:", response);
 
-                    console.log("Parsed data:", data);
+                if (response.type === "initial_data_response") {
+                    const data = response.data;
+                    setChannels(data.channels || []);
+                    setScheduledPosts(data.posts || []);
+                    setPendingMedia(data.media && data.media.file_id ? data.media : null);
 
-                    if (responseType === "initial_data_response") {
-                        setChannels(data.channels || []);
-                        setScheduledPosts(data.posts || []);
-                        setPendingMedia(data.media && data.media.file_id ? data.media : null);
-
-                        // --- ENG MUHIM TUZATISH ---
-                        // Ma'lumotlar kelganidan keyin "loading"ni to'xtatamiz
-                        setIsLoading(false);
-                        console.log("Data loaded, isLoading set to false.");
-                    }
-                } catch (error) {
-                    console.error("Failed to parse message from bot:", error);
-                    setIsLoading(false); // Xatolik bo'lsa ham "loading"ni to'xtatamiz
+                    setIsLoading(false);
+                    console.log("Data processed. Loading is now false.");
                 }
+            } catch (error) {
+                // Agar kelgan xabar JSON bo'lmasa, bu xato emas, shunchaki e'tibor bermaymiz
+                console.log("Received a non-JSON message, ignoring it.");
             }
         };
 
@@ -73,20 +59,29 @@ function App() {
         setTimeout(fetchData, 500); 
     }, [fetchData]);
 
+    const handleDeletePost = useCallback((postId) => {
+        webApp.showAlert(`Are you sure you want to delete post ${postId}?`, (isConfirmed) => {
+            if (isConfirmed) {
+                webApp.sendData(JSON.stringify({ type: 'delete_post', post_id: postId }));
+                setTimeout(fetchData, 500); 
+            }
+        });
+    }, [fetchData]);
+
     return (
         <div className="app-container">
             <h1>Bot Dashboard</h1>
             <MediaPreview media={pendingMedia} />
             <PostCreator 
                 channels={channels}
-                isLoading={isLoading} // Yagona isLoading'dan foydalanamiz
+                isLoading={isLoading}
                 pendingMedia={pendingMedia}
                 onPostScheduled={onPostScheduled}
             />
             <ScheduledPostsList
                 posts={scheduledPosts}
                 onDelete={handleDeletePost}
-                isLoading={isLoading} // Yagona isLoading'dan foydalanamiz
+                isLoading={isLoading}
             />
         </div>
     );
