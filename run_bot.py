@@ -3,12 +3,14 @@ import logging
 from redis.asyncio import Redis
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
-from aiogram.fsm.storage.redis import RedisStorage # <-- NEW IMPORT
+from aiogram import Dispatcher
+from aiogram.fsm.storage.redis import RedisStorage
 
-from src.bot.bot import bot, dp
+from src.bot.bot import bot # We only import the bot object now
 from src.bot.handlers import user_handlers, admin_handlers
 from src.bot.config import settings
 from src.bot.database.db import create_pool
+from src.bot.middlewares.i18n import i18n_middleware # <-- NEW IMPORT
 from src.bot.database.repositories import (
     UserRepository,
     SchedulerRepository,
@@ -29,17 +31,22 @@ logger = logging.getLogger(__name__)
 
 
 async def main():
-    # --- ALL CONNECTIONS AND SETUP ARE NOW CENTRALIZED HERE ---
+    # --- ALL CONNECTIONS AND SETUP ARE CENTRALIZED HERE ---
     
     # 1. Create connections
     db_pool = await create_pool()
     redis_conn = Redis.from_url(settings.REDIS_URL.unicode_string())
 
-    # 2. Configure FSM Storage and set it for the dispatcher
+    # 2. Create FSM Storage
     storage = RedisStorage(redis=redis_conn)
-    dp.storage = storage # <-- SETTING STORAGE HERE
 
-    # 3. Setup Repositories and Services
+    # 3. Create Dispatcher instance with the storage
+    dp = Dispatcher(storage=storage)
+
+    # 4. Setup i18n middleware
+    i18n_middleware.setup(dispatcher=dp)
+
+    # 5. Setup Repositories and Services
     user_repo = UserRepository(db_pool)
     scheduler_repo = SchedulerRepository(db_pool)
     channel_repo = ChannelRepository(db_pool)
@@ -50,14 +57,14 @@ async def main():
     analytics_service = AnalyticsService(bot, analytics_repo, scheduler_repo)
     subscription_service = SubscriptionService(settings, user_repo, plan_repo, channel_repo, scheduler_repo)
 
-    # 4. Setup Scheduler
+    # 6. Setup Scheduler
     db_url_str = settings.DATABASE_URL.unicode_string()
     sqlalchemy_url = db_url_str.replace("postgresql://", "postgresql+psycopg2://")
     jobstores = { 'default': SQLAlchemyJobStore(url=sqlalchemy_url) }
     scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
     scheduler_service = SchedulerService(scheduler, scheduler_repo)
 
-    # 5. Pass dependencies to handlers via context (for background tasks) and middleware
+    # 7. Pass dependencies
     dp['db_pool'] = db_pool
     dp['analytics_service'] = analytics_service
 
@@ -73,7 +80,7 @@ async def main():
         subscription_service=subscription_service,
     ))
 
-    # 6. Setup and start background jobs
+    # 8. Setup background jobs
     scheduler.add_job(
         update_all_post_views, 
         trigger='interval', 
@@ -82,11 +89,11 @@ async def main():
         replace_existing=True
     )
 
-    # 7. Register routers
+    # 9. Register routers
     dp.include_router(admin_handlers.router)
     dp.include_router(user_handlers.router)
 
-    # 8. Start everything
+    # 10. Start everything
     try:
         logger.info("Starting scheduler...")
         scheduler.start()
@@ -98,7 +105,6 @@ async def main():
             scheduler.shutdown()
         await db_pool.close()
         await redis_conn.aclose()
-        # No need to close dp.storage separately as redis_conn is now managed here
 
 if __name__ == "__main__":
     try:
