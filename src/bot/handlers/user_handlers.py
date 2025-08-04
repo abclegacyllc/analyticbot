@@ -145,3 +145,25 @@ async def my_plan_handler(
         text.append(i18n.get("myplan-posts-limit", current=status.current_posts_this_month, max=status.max_posts_per_month))
 
     await message.answer("\n".join(text))
+
+@router.message(F.PHOTO | F.VIDEO)
+async def handle_media(message: Message, state: FSMContext, i18n: I18nContext):
+    """
+    Catches photos and videos sent directly to the bot and saves their info to FSM state.
+    """
+    file_id = None
+    file_type = None
+
+    if message.photo:
+        # Get the largest available photo
+        file_id = message.photo[-1].file_id
+        file_type = 'photo'
+    elif message.video:
+        file_id = message.video.file_id
+        file_type = 'video'
+
+    if file_id and file_type:
+        # Save the media info temporarily in the user's state
+        await state.update_data(media_file_id=file_id, media_file_type=file_type)
+        # Notify the user that the media is ready for scheduling via TWA
+        await message.answer(i18n.get("media-received-success"))
