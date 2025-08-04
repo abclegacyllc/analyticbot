@@ -13,10 +13,10 @@ const PostCreator = ({ channels, isLoading, pendingMedia, onPostScheduled }) => 
 
   // Effect to select the first channel by default when the list loads
   useEffect(() => {
-    if (!isLoading && channels.length > 0) {
+    if (!isLoading && channels.length > 0 && !channelId) {
       setChannelId(channels[0].id);
     }
-  }, [isLoading, channels]);
+  }, [isLoading, channels, channelId]);
 
   // Effect to control the visibility and state of the main "Schedule" button
   useEffect(() => {
@@ -52,8 +52,6 @@ const PostCreator = ({ channels, isLoading, pendingMedia, onPostScheduled }) => 
       onPostScheduled();
     };
 
-    // --- THIS IS THE FIX ---
-    // Use the correct .onClick() method instead of .on('click', ...)
     mainButton.onClick(handleSendData);
 
     // Cleanup the event listener when the component re-renders or unmounts
@@ -89,18 +87,18 @@ const PostCreator = ({ channels, isLoading, pendingMedia, onPostScheduled }) => 
       </div>
 
       <div className="form-group">
-        <label htmlFor="post-text">Caption (optional for media):</label>
+        <label htmlFor="post-text">{pendingMedia ? "Caption (optional):" : "Text:"}</label>
         <textarea
           id="post-text"
           value={postText}
           onChange={(e) => setPostText(e.target.value)}
-          placeholder="Enter your post text or caption here..."
+          placeholder={pendingMedia ? "Enter a caption for your media..." : "Enter your post text here..."}
           rows="6"
         />
       </div>
 
       <div className="form-group">
-        <label htmlFor="schedule-time">Schedule Time (UTC):</label>
+        <label htmlFor="schedule-time">Schedule Time:</label>
         <input
           id="schedule-time"
           type="datetime-local"
