@@ -1,3 +1,5 @@
+# FILE: src/bot/services/scheduler_service.py
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.base import JobLookupError
 from src.bot.database.repositories import SchedulerRepository
@@ -22,10 +24,9 @@ class SchedulerService:
         post_id = await self.repository.create_scheduled_post(channel_id, text, schedule_time)
         job_id = str(post_id)
 
-        # --- FIX IS HERE ---
         # We must pass the bot and a database pool connection to the job
         # so it can function when it runs in the background.
-        db_pool = await create_pool() # Create a pool for the job
+        db_pool = await create_pool() # Create a fresh pool for the job
 
         self.scheduler.add_job(
             send_scheduled_message,
