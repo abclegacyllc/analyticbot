@@ -1,3 +1,5 @@
+# FILE: src/bot/tasks.py
+
 import logging
 import asyncio
 from aiogram import Bot
@@ -40,6 +42,10 @@ async def send_scheduled_message(
     except Exception as e:
         await repo.update_post_status(post_id, "failed")
         logger.error(f"Failed to send post {post_id}: {e}", exc_info=True)
+    finally:
+        # Since we create a new pool for each job, we must close it
+        if db_pool:
+            await db_pool.close()
 
 
 async def update_all_post_views():
@@ -78,5 +84,4 @@ async def update_all_post_views():
         logger.error(f"Error during update_all_post_views task: {e}", exc_info=True)
     finally:
         await temp_pool.close()
-        # Cleanly close the bot session
         await (await temp_bot.get_session()).close()
