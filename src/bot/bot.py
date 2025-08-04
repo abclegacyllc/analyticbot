@@ -6,7 +6,7 @@ from aiogram.client.default import DefaultBotProperties
 from .config import settings
 
 # Only the Bot instance is created here.
-# The Dispatcher will be created in run_bot.py
+# The Dispatcher will be created in run_bot.py where it belongs.
 bot = Bot(
     token=settings.BOT_TOKEN.get_secret_value(), 
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
