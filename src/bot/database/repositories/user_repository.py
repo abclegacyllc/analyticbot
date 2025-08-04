@@ -1,39 +1,29 @@
-# src/bot/database/repositories/user_repository.py
-
-import asyncpg
-from datetime import datetime, timezone
-from typing import Optional
+from asyncpg.pool import Pool
 
 class UserRepository:
-    def __init__(self, pool: asyncpg.Pool):
+    def __init__(self, pool: Pool):
         self.pool = pool
 
-    async def create_user(
-        self,
-        user_id: int,
-        username: Optional[str],
-        role: str = "admin",
-        referrer_id: Optional[int] = None
-    ):
-        """Creates a new user or does nothing if the user already exists."""
+    async def get_user(self, user_id: int):
+        sql = "SELECT * FROM users WHERE user_id = $1"
         async with self.pool.acquire() as conn:
-            await conn.execute(
-                """
-                INSERT INTO users (user_id, username, role, registration_date, is_banned, referrer_id)
-                VALUES ($1, $2, $3, $4, FALSE, $5)
-                ON CONFLICT (user_id) DO NOTHING
-                """,
-                user_id, username, role, datetime.now(timezone.utc), referrer_id
-            )
+            return await conn.fetchrow(sql, user_id)
 
-    async def get_user_role(self, user_id: int) -> Optional[str]:
-        """Retrieves the role of a specific user."""
+    async def create_user(self, user_id: int, username: str | None):
+        """
+        Creates a new user or does nothing if the user already exists.
+        """
+        # --- THIS IS THE CORRECTED SQL ---
+        # We changed "registration_date" to "created_at" to match the database table.
+        sql = """
+            INSERT INTO users (user_id, username, created_at)
+            VALUES ($1, $2, NOW())
+            ON CONFLICT (user_id) DO NOTHING;
+        """
         async with self.pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT role FROM users WHERE user_id = $1", user_id)
-            return row["role"] if row else None
+            await conn.execute(sql, user_id, username)
 
-    # --- NEW METOD ---
-    async def get_user_plan(self, user_id: int) -> Optional[str]:
-        """Retrieves the user's current subscription plan."""
+    async def update_user_plan(self, user_id: int, plan_id: int):
+        sql = "UPDATE users SET plan_id = $1 WHERE user_id = $2"
         async with self.pool.acquire() as conn:
-            return await conn.fetchval("SELECT plan FROM users WHERE user_id = $1", user_id)
+            await conn.execute(sql, plan_id, user_id)
