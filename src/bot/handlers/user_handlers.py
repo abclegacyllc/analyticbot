@@ -30,87 +30,6 @@ async def handle_web_app_data(
     state: FSMContext,
 ):
     """
-    Handles data from TWA by sending a direct message back to the user,
-    which is the most reliable communication method.
-    """
-    try:
-        data = json.loads(message.web_app_data.data)
-        request_type = data.get('type')
-
-        # --- Handle requests that need data back ---
-        response_data = {}
-        response_type = "unknown_response"
-
-        if request_type == 'get_initial_data':
-            # TWA is requesting all initial data at once
-            user_channels = await channel_repo.get_user_channels(message.from_user.id)
-            pending_posts = await scheduler_repo.get_pending_posts_by_user(message.from_user.id)
-            user_state = await state.get_data()
-            
-            response_data = {
-                "channels": [{"id": str(ch['channel_id']), "name": ch['channel_name']} for ch in user_channels],
-                "posts": [
-                    {
-                        "id": post['post_id'],
-                        "text": post['text'],
-                        "schedule_time": post['schedule_time'].isoformat(),
-                        "channel_name": post['channel_name'],
-                        "file_id": post['file_id'],
-                        "file_type": post['file_type']
-                    } for post in pending_posts
-                ],
-                "media": {
-                    "file_id": user_state.get('media_file_id'),
-                    "file_type": user_state.get('media_file_type')
-                }
-            }
-            response_type = "initial_data_response"
-
-        # --- Handle actions that change data ---
-        elif request_type == 'new_post':
-            try:
-                await scheduler_service.schedule_post(
-                    channel_id=int(data.get('channel_id')),
-                    text=data.get('text'),
-                    schedule_time=datetime.fromisoformat(data.get('schedule_time')),
-                    file_id=data.get('file_id'),
-                    file_type=data.get('file_type')
-                )
-                # After scheduling, clear the temporary media from state
-                await state.update_data(media_file_id=None, media_file_type=None)
-            except Exception as e:
-                logger.error(f"Failed to create post: {e}")
-            return  # Stop processing for this type
-
-        elif request_type == 'delete_post':
-            try:
-                post_id = int(data.get('post_id'))
-                await scheduler_service.delete_post(post_id)
-            except Exception as e:
-                logger.error(f"Failed to delete post: {e}")
-            return  # Stop processing for this type
-
-        # --- Send the data back in a specially formatted message ---
-        if response_type != "unknown_response":
-            formatted_message = (
-                f"<pre>__TWA_RESPONSE__||{response_type}||"
-                f"{json.dumps(response_data)}</pre>"
-            )
-            await message.answer(formatted_message, parse_mode="HTML")
-
-    except Exception as e:
-        logger.error(f"An error occurred in handle_web_app_data: {e}", exc_info=True)
-
-
-@router.message(F.web_app_data)
-async def handle_web_app_data(
-    message: Message,
-    channel_repo: ChannelRepository,
-    scheduler_repo: SchedulerRepository,
-    scheduler_service: SchedulerService,
-    state: FSMContext,
-):
-    """
     Handles all data requests and actions from the TWA.
     """
     try:
@@ -131,7 +50,7 @@ async def handle_web_app_data(
                 "channels": [{"id": str(ch['channel_id']), "name": ch['channel_name']} for ch in user_channels],
                 "posts": [
                     {
-                        "id": post['post_id'], "text": post['text'],
+                        "id": post['post_id'], "text": post['text'] or "", # Ensure text is not None
                         "schedule_time": post['schedule_time'].isoformat(),
                         "channel_name": post['channel_name'],
                         "file_id": post['file_id'], # Pass media info for the list
@@ -170,6 +89,7 @@ async def handle_web_app_data(
 
         # --- SEND DATA RESPONSE BACK TO TWA ---
         if response_type != "unknown_response":
+            # We add a special wrapper to make it easy to parse on the frontend
             formatted_message = (
                 f"<pre>__TWA_RESPONSE__||{response_type}||"
                 f"{json.dumps(response_data)}</pre>"
@@ -191,6 +111,7 @@ async def cmd_start(message: Message, i18n: I18nContext, user_repo: UserReposito
 
 @router.message(Command("dashboard"))
 async def cmd_dashboard(message: Message, i18n: I18nContext):
+    # Make sure your TWA_HOST_URL in the .env file is correct
     web_app_info = WebAppInfo(url=str(settings.TWA_HOST_URL))
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=i18n.get("menu-button-dashboard"), web_app=web_app_info)]
@@ -211,11 +132,13 @@ async def my_plan_handler(
     text = [f"<b>{i18n.get('myplan-header')}</b>\n"]
     text.append(i18n.get("myplan-plan-name", plan_name=status.plan_name.upper()))
 
+    # Show channel usage
     if status.max_channels == -1:
         text.append(i18n.get("myplan-channels-unlimited", current=status.current_channels))
     else:
         text.append(i18n.get("myplan-channels-limit", current=status.current_channels, max=status.max_channels))
 
+    # Show post usage
     if status.max_posts_per_month == -1:
         text.append(i18n.get("myplan-posts-unlimited", current=status.current_posts_this_month))
     else:
