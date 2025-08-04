@@ -1,19 +1,23 @@
 import json
 import logging
-from datetime import datetime, timezone
-from aiogram import Router, F, types, Bot
+from datetime import datetime
+from aiogram import Router, F, types
+from aiogram.filters import CommandStart, Command
+from aiogram.fsm.context import FSMContext
 from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
     Message,
     WebAppInfo,
-    InlineKeyboardMarkup,
-    InlineKeyboardButton,
 )
-from aiogram.filters import CommandStart, Command
 from aiogram_i18n import I18nContext
-from aiogram.fsm.context import FSMContext
 
 from src.bot.config import settings
-from src.bot.database.repositories import UserRepository, ChannelRepository, SchedulerRepository
+from src.bot.database.repositories import (
+    ChannelRepository,
+    SchedulerRepository,
+    UserRepository,
+)
 from src.bot.services.scheduler_service import SchedulerService
 from src.bot.services.subscription_service import SubscriptionService
 
@@ -34,57 +38,67 @@ async def handle_web_app_data(
     """
     try:
         data = json.loads(message.web_app_data.data)
-        request_type = data.get('type')
+        request_type = data.get("type")
 
         response_data = {}
         response_type = "unknown_response"
 
         # --- HANDLE DATA REQUEST ---
-        if request_type == 'get_initial_data':
+        if request_type == "get_initial_data":
             user_channels = await channel_repo.get_user_channels(message.from_user.id)
-            pending_posts = await scheduler_repo.get_pending_posts_by_user(message.from_user.id)
+            pending_posts = await scheduler_repo.get_pending_posts_by_user(
+                message.from_user.id
+            )
             user_state = await state.get_data()
-            
+
             response_data = {
-                "channels": [{"id": str(ch['channel_id']), "name": ch['channel_name']} for ch in user_channels],
+                "channels": [
+                    {"id": str(ch["channel_id"]), "name": ch["channel_name"]}
+                    for ch in user_channels
+                ],
                 "posts": [
                     {
-                        "id": post['post_id'], "text": post['text'] or "",
-                        "schedule_time": post['schedule_time'].isoformat(),
-                        "channel_name": post['channel_name'],
-                        "file_id": post['file_id'],
-                        "file_type": post['file_type']
-                    } for post in pending_posts
+                        "id": post["post_id"],
+                        # --- MUHIM TUZATISH SHU YERDA ---
+                        # Agar post['text'] None bo'lsa, uni bo'sh satrga o'zgartiramiz
+                        "text": post["text"] or "",
+                        "schedule_time": post["schedule_time"].isoformat(),
+                        "channel_name": post["channel_name"],
+                        "file_id": post["file_id"],
+                        "file_type": post["file_type"],
+                    }
+                    for post in pending_posts
                 ],
                 "media": {
-                    "file_id": user_state.get('media_file_id'),
-                    "file_type": user_state.get('media_file_type')
-                }
+                    "file_id": user_state.get("media_file_id"),
+                    "file_type": user_state.get("media_file_type"),
+                },
             }
             response_type = "initial_data_response"
-        
+
         # --- HANDLE ACTIONS ---
-        elif request_type == 'new_post':
+        elif request_type == "new_post":
             try:
                 await scheduler_service.schedule_post(
-                    channel_id=int(data.get('channel_id')),
-                    text=data.get('text'),
-                    schedule_time=datetime.fromisoformat(data.get('schedule_time')),
-                    file_id=data.get('file_id'),
-                    file_type=data.get('file_type')
+                    channel_id=int(data.get("channel_id")),
+                    text=data.get("text"),
+                    schedule_time=datetime.fromisoformat(data.get("schedule_time")),
+                    file_id=data.get("file_id"),
+                    file_type=data.get("file_type"),
                 )
                 await state.update_data(media_file_id=None, media_file_type=None)
             except Exception as e:
                 logger.error(f"Failed to create post: {e}")
             return
 
-        elif request_type == 'delete_post':
+        elif request_type == "delete_post":
             try:
-                await scheduler_service.delete_post(int(data.get('post_id')))
+                await scheduler_service.delete_post(int(data.get("post_id")))
             except Exception as e:
                 logger.error(f"Failed to delete post: {e}")
             return
 
+        # --- SEND DATA RESPONSE BACK TO TWA ---
         if response_type != "unknown_response":
             formatted_message = (
                 f"<pre>__TWA_RESPONSE__||{response_type}||"
@@ -99,8 +113,7 @@ async def handle_web_app_data(
 @router.message(CommandStart())
 async def cmd_start(message: Message, i18n: I18nContext, user_repo: UserRepository):
     await user_repo.create_user(
-        user_id=message.from_user.id,
-        username=message.from_user.username
+        user_id=message.from_user.id, username=message.from_user.username
     )
     await message.answer(i18n.get("start_message", user_name=message.from_user.full_name))
 
@@ -108,9 +121,15 @@ async def cmd_start(message: Message, i18n: I18nContext, user_repo: UserReposito
 @router.message(Command("dashboard"))
 async def cmd_dashboard(message: Message, i18n: I18nContext):
     web_app_info = WebAppInfo(url=str(settings.TWA_HOST_URL))
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text=i18n.get("menu-button-dashboard"), web_app=web_app_info)]
-    ])
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(
+                    text=i18n.get("menu-button-dashboard"), web_app=web_app_info
+                )
+            ]
+        ]
+    )
     await message.answer("Click the button below to open your dashboard:", reply_markup=keyboard)
 
 
@@ -120,7 +139,9 @@ async def my_plan_handler(
     i18n: I18nContext,
     subscription_service: SubscriptionService,
 ):
-    status = await subscription_service.get_user_subscription_status(message.from_user.id)
+    status = await subscription_service.get_user_subscription_status(
+        message.from_user.id
+    )
     if not status:
         return await message.answer(i18n.get("myplan-error"))
 
@@ -128,49 +149,60 @@ async def my_plan_handler(
     text.append(i18n.get("myplan-plan-name", plan_name=status.plan_name.upper()))
 
     if status.max_channels == -1:
-        text.append(i18n.get("myplan-channels-unlimited", current=status.current_channels))
+        text.append(
+            i18n.get("myplan-channels-unlimited", current=status.current_channels)
+        )
     else:
-        text.append(i18n.get("myplan-channels-limit", current=status.current_channels, max=status.max_channels))
+        text.append(
+            i18n.get(
+                "myplan-channels-limit",
+                current=status.current_channels,
+                max=status.max_channels,
+            )
+        )
 
     if status.max_posts_per_month == -1:
-        text.append(i18n.get("myplan-posts-unlimited", current=status.current_posts_this_month))
+        text.append(
+            i18n.get(
+                "myplan-posts-unlimited", current=status.current_posts_this_month
+            )
+        )
     else:
-        text.append(i18n.get("myplan-posts-limit", current=status.current_posts_this_month, max=status.max_posts_per_month))
+        text.append(
+            i18n.get(
+                "myplan-posts-limit",
+                current=status.current_posts_this_month,
+                max=status.max_posts_per_month,
+            )
+        )
 
     await message.answer("\n".join(text))
 
-# --- MUHIM O'ZGARISHLAR SHU YERDA ---
 
-# 1-O'ZGARISH: Filtrni aniqroq qilib qayta yozdik va log qo'shdik.
 @router.message(F.content_type.in_({types.ContentType.PHOTO, types.ContentType.VIDEO}))
 async def handle_media(message: Message, state: FSMContext, i18n: I18nContext):
-    """
-    Catches photos and videos sent directly to the bot and saves their info to FSM state.
-    """
-    logger.info(f"--- handle_media triggered! Content type: {message.content_type} ---") # DIAGNOSTIKA UCHUN
+    logger.info(f"--- handle_media triggered! Content type: {message.content_type} ---")
     file_id = None
     file_type = None
 
     if message.photo:
         file_id = message.photo[-1].file_id
-        file_type = 'photo'
+        file_type = "photo"
     elif message.video:
         file_id = message.video.file_id
-        file_type = 'video'
+        file_type = "video"
 
     if file_id and file_type:
         await state.update_data(media_file_id=file_id, media_file_type=file_type)
         await message.answer(i18n.get("media-received-success"))
     else:
-        logger.warning("Media handler was triggered but could not extract file_id or file_type.")
+        logger.warning(
+            "Media handler was triggered but could not extract file_id or file_type."
+        )
 
-# 2-O'ZGARISH: Boshqa barcha xabarlarni ushlab oluvchi "tuzoq" qo'shdik.
-# Bu eng oxirida turishi SHART.
+
 @router.message()
 async def unhandled_message_handler(message: Message):
-    """
-    This is a catch-all handler for any message that wasn't handled by the others.
-    """
     logger.info(
         f"CATCH-ALL HANDLER: Caught a message that was not handled by other functions. "
         f"Content type: {message.content_type}. Text: '{message.text}'"
