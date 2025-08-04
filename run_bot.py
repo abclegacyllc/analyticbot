@@ -10,7 +10,7 @@ from src.bot.bot import bot # We only import the bot object now
 from src.bot.handlers import user_handlers, admin_handlers
 from src.bot.config import settings
 from src.bot.database.db import create_pool
-from src.bot.middlewares.i18n import i18n_middleware # <-- NEW IMPORT
+from src.bot.middlewares.i18n import i18n_middleware
 from src.bot.database.repositories import (
     UserRepository,
     SchedulerRepository,
@@ -40,7 +40,7 @@ async def main():
     # 2. Create FSM Storage
     storage = RedisStorage(redis=redis_conn)
 
-    # 3. Create Dispatcher instance with the storage
+    # 3. Create Dispatcher instance WITH the storage
     dp = Dispatcher(storage=storage)
 
     # 4. Setup i18n middleware
@@ -64,10 +64,7 @@ async def main():
     scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
     scheduler_service = SchedulerService(scheduler, scheduler_repo)
 
-    # 7. Pass dependencies
-    dp['db_pool'] = db_pool
-    dp['analytics_service'] = analytics_service
-
+    # 7. Pass dependencies to handlers
     dp.update.outer_middleware.register(DependencyMiddleware(
         user_repo=user_repo,
         channel_repo=channel_repo,
@@ -80,14 +77,13 @@ async def main():
         subscription_service=subscription_service,
     ))
 
-     # 8. Setup background jobs
+    # 8. Setup background jobs
     scheduler.add_job(
         update_all_post_views, 
         trigger='interval', 
         hours=1, 
         id='update_views_job',
         replace_existing=True
-        # --- FIX IS HERE: Remove the entire 'kwargs' block ---
     )
 
     # 9. Register routers
