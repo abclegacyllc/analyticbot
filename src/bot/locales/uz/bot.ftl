@@ -65,3 +65,5 @@ twa-data-received-post = ✅ Post ma'lumotlari qabul qilindi. Rejalashtirishga t
     - Kanal IDsi: { $channel_id }
     - Reja vaqti: { $schedule_time }
     - Matn: <pre>{ $text }</pre>
+
+media-received-success = ✅ Media qabul qilindi! Endi uni rejalashtirish uchun boshqaruv panelini oching.
