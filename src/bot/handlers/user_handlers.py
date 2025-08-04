@@ -19,57 +19,117 @@ router = Router()
 # ... handle_web_app_data function stays the same ...
 @router.message(F.web_app_data)
 async def handle_web_app_data(
-    message: Message, 
-    i18n: I18nContext, 
+    message: Message,
+    i18n: I18nContext,
     bot: Bot,
     channel_repo: ChannelRepository,
+    scheduler_repo: SchedulerRepository, # <-- NEW: scheduler_repo is now needed here
     scheduler_service: SchedulerService,
 ):
-# ... this function's code is unchanged ...
+    """
+    This handler receives data sent from the Telegram Web App.
+    """
     data = json.loads(message.web_app_data.data)
-    query_id = message.web_app_data.query_id 
+    query_id = message.web_app_data.query_id
 
+    # --- HANDLE 'get_channels' REQUEST ---
     if data.get('type') == 'get_channels':
         user_channels = await channel_repo.get_user_channels(message.from_user.id)
-        
-        channels_payload = [
-            {"id": str(ch['channel_id']), "name": ch['channel_name']} for ch in user_channels
-        ]
-        
+        channels_payload = [{"id": str(ch['channel_id']), "name": ch['channel_name']} for ch in user_channels]
         result = InlineQueryResultArticle(
             id=query_id,
             title="Channels Response",
             input_message_content=InputTextMessageContent(message_text="."),
             description=json.dumps(channels_payload)
         )
-        
         await bot.answer_web_app_query(query_id, results=[result])
         return
 
+    # --- HANDLE 'new_post' SUBMISSION ---
     elif data.get('type') == 'new_post':
         try:
+            # ... (this part is unchanged)
             channel_id = int(data.get('channel_id'))
             post_text = data.get('text', 'No text provided')
             naive_dt = datetime.fromisoformat(data.get('schedule_time'))
             aware_dt = naive_dt.replace(tzinfo=timezone.utc)
 
             await scheduler_service.schedule_post(
-                channel_id=channel_id, 
-                text=post_text, 
+                channel_id=channel_id,
+                text=post_text,
                 schedule_time=aware_dt
             )
-            
             await message.answer(
                 i18n.get(
-                    "schedule-success", 
+                    "schedule-success",
                     channel_name=f"ID {channel_id}",
                     schedule_time=aware_dt.strftime('%Y-%m-%d %H:%M %Z')
                 )
             )
-
         except (ValueError, TypeError, KeyError) as e:
             await message.answer(f"Error processing post data: {e}")
-            
+        return # <-- Important: Add return here
+
+    # --- NEW: HANDLE 'get_scheduled_posts' REQUEST ---
+    elif data.get('type') == 'get_scheduled_posts':
+        # We need the scheduler_repo, which we already get from middleware
+        pending_posts = await scheduler_repo.get_pending_posts_by_user(message.from_user.id)
+        
+        # Format posts for sending to the web app
+        posts_payload = [
+            {
+                "id": post['post_id'],
+                "text": post['text'],
+                # Format datetime to a string that JS can easily parse
+                "schedule_time": post['schedule_time'].isoformat(),
+                "channel_name": post['channel_name']
+            } for post in pending_posts
+        ]
+        
+        result = InlineQueryResultArticle(
+            id=query_id,
+            title="Scheduled Posts Response",
+            input_message_content=InputTextMessageContent(message_text="."),
+            description=json.dumps(posts_payload)
+        )
+        await bot.answer_web_app_query(query_id, results=[result])
+        return
+
+    # --- NEW: HANDLE 'delete_post' REQUEST ---
+    elif data.get('type') == 'delete_post':
+        try:
+            post_id = int(data.get('post_id'))
+            success = await scheduler_service.delete_post(post_id)
+            if success:
+                # We can just respond with a simple alert in the TWA
+                await bot.answer_web_app_query(query_id, results=[]) # Sending an empty result is fine
+                # Optionally, you can send a message to the chat
+                # await message.answer(f"Post {post_id} deleted.")
+            else:
+                # Inform the TWA if deletion failed
+                 await bot.answer_web_app_query(
+                    query_id,
+                    results=[InlineQueryResultArticle(
+                        id=f"error_{post_id}",
+                        title="Deletion Failed",
+                        input_message_content=InputTextMessageContent(message_text="."),
+                        description=json.dumps({"error": "Post not found or could not be deleted."})
+                    )]
+                )
+        except (ValueError, TypeError, KeyError) as e:
+            # Handle potential errors if post_id is missing or invalid
+            await bot.answer_web_app_query(
+                query_id,
+                results=[InlineQueryResultArticle(
+                    id="error_delete",
+                    title="Error",
+                    input_message_content=InputTextMessageContent(message_text="."),
+                    description=json.dumps({"error": f"Invalid request: {e}"})
+                )]
+            )
+        return
+
+    # --- Fallback for unknown data types ---
     else:
         await message.answer(i18n.get('twa-data-unknown'))
 
