@@ -1,13 +1,11 @@
-# FILE: src/bot/services/scheduler_service.py
-
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.base import JobLookupError
 from src.bot.database.repositories import SchedulerRepository
 from datetime import datetime
 import logging
-from src.bot.tasks import send_scheduled_message
+from typing import Optional  # <-- THIS IS THE FIX
 
-# This service needs access to the bot and db_pool to pass to the job
+from src.bot.tasks import send_scheduled_message
 from src.bot.bot import bot
 from src.bot.database.db import create_pool
 
@@ -20,9 +18,9 @@ class SchedulerService:
         self.repository = repository
 
     async def schedule_post(
-        self, 
-        channel_id: int, 
-        schedule_time: datetime, 
+        self,
+        channel_id: int,
+        schedule_time: datetime,
         text: Optional[str] = None,
         file_id: Optional[str] = None,
         file_type: Optional[str] = None
@@ -43,7 +41,7 @@ class SchedulerService:
 
         # We must pass the bot and a database pool connection to the job
         # so it can function when it runs in the background.
-        db_pool = await create_pool() 
+        db_pool = await create_pool()
 
         self.scheduler.add_job(
             send_scheduled_message,
@@ -74,5 +72,5 @@ class SchedulerService:
             logger.info(f"Deleted post {post_id} from database.")
         else:
             logger.warning(f"Post {post_id} not found in the database for deletion.")
-        
+
         return was_deleted
