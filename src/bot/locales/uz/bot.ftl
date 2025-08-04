@@ -2,14 +2,14 @@ start_message = Salom, { $user_name }!
 
 # === Channel Management ===
 add-channel-usage = 📝 Foydalanish: /add_channel @kanal_nomi
-add-channel-not-found = ❗️ "{ $channel_name }" nomli kanal topilmadi. Kanal nomini to'g'ri yozganingizga va bot ushbu kanalda admin ekanligiga ishonch hosil qiling.
+add-channel-not-found = ❗️ "{ $channel_name }" nomli kanal topilmadi.
+Kanal nomini to'g'ri yozganingizga va bot ushbu kanalda admin ekanligiga ishonch hosil qiling.
 add-channel-success = ✅ '{ $channel_title }' kanali (ID: { $channel_id }) muvaffaqiyatli ro'yxatdan o'tkazildi.
 
 # === Guard Module Commands ===
 guard-channel-not-found = ❗️ "{ $channel_name }" nomli kanal topilmadi. Iltimos, nomini tekshiring.
 guard-channel-not-registered = ❗️ Bu kanal botda ro'yxatdan o'tmagan. Avval /add_channel buyrug'idan foydalaning.
 guard-channel-not-owner = ❗️ Siz ushbu kanalning egasi emassiz.
-
 # /add_word
 guard-add-usage = 📝 Foydalanish: /add_word @kanal_nomi <so'z>
 guard-word-added = ✅ "{ $word }" so'zi "{ $channel_name }" kanali uchun taqiqlangan so'zlar ro'yxatiga qo'shildi.
@@ -28,8 +28,10 @@ schedule-past-time-error = ❗️ Rejalashtirilgan vaqt o'tmishda bo'lishi mumki
 schedule-success = ✅ Xabaringiz '{ $channel_name }' kanali uchun { $schedule_time } vaqtiga rejalashtirildi.
 
 # === Monetization Limits ===
-limit-reached-channels = 🚫 Siz '{ $plan_name }' tarif rejasidagi kanallar chegarasiga yetdingiz. Ko'proq kanal qo'shish uchun tarifingizni yangilang.
-limit-reached-posts = 🚫 Siz '{ $plan_name }' tarif rejasidagi oylik postlar chegarasiga yetdingiz. Ko'proq post rejalashtirish uchun tarifingizni yangilang.
+limit-reached-channels = 🚫 Siz '{ $plan_name }' tarif rejasidagi kanallar chegarasiga yetdingiz.
+Ko'proq kanal qo'shish uchun tarifingizni yangilang.
+limit-reached-posts = 🚫 Siz '{ $plan_name }' tarif rejasidagi oylik postlar chegarasiga yetdingiz.
+Ko'proq post rejalashtirish uchun tarifingizni yangilang.
 
 # === Analytics Module ===
 # /stats command
@@ -41,8 +43,10 @@ stats-no-data = 🤷‍♂️ Diagramma yaratish uchun yetarli ma'lumot topilmad
 
 # /views command
 views-usage = 📝 Foydalanish: /views <POST_ID>
-views-invalid-id = ❗️ Post ID xato. U raqam bo'lishi kerak.
-views-not-found = 🤷‍♂️ Post ID { $post_id } uchun ko'rishlar sonini olib bo'lmadi. ID to'g'riligiga va ruxsatingiz borligiga ishonch hosil qiling.
+views-invalid-id = ❗️ Post ID xato.
+U raqam bo'lishi kerak.
+views-not-found = 🤷‍♂️ Post ID { $post_id } uchun ko'rishlar sonini olib bo'lmadi.
+ID to'g'riligiga va ruxsatingiz borligiga ishonch hosil qiling.
 views-success = 📊 Post ID { $post_id } da { $view_count } ta ko'rishlar soni mavjud.
 
 # === /myplan command ===
@@ -58,12 +62,15 @@ myplan-error = ❗️ Sizning rejangiz haqidagi ma'lumotlarni olib bo'lmadi. Ilt
 menu-button-dashboard = 🖥 Boshqaruv
 
 # TWA data handling
-twa-data-received-post = ✅ Veb-ilovadan post ma'lumotlari qabul qilindi. Matn:
+twa-data-received-post = ✅ Veb-ilovadan post ma'lumotlari qabul qilindi.
+Matn:
 twa-data-unknown = 🤷‍♂️ Veb-ilovadan noma'lum formatdagi ma'lumot keldi.
 
-twa-data-received-post = ✅ Post ma'lumotlari qabul qilindi. Rejalashtirishga tayyor:
+twa-data-received-post = ✅ Post ma'lumotlari qabul qilindi.
+Rejalashtirishga tayyor:
     - Kanal IDsi: { $channel_id }
     - Reja vaqti: { $schedule_time }
     - Matn: <pre>{ $text }</pre>
 
-media-received-success = ✅ Media qabul qilindi! Endi uni rejalashtirish uchun boshqaruv panelini oching.
+media-received-success = ✅ Media qabul qilindi!
+Endi uni rejalashtirish uchun boshqaruv panelini oching.
