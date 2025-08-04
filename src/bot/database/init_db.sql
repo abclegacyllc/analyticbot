@@ -11,7 +11,6 @@ CREATE TABLE IF NOT EXISTS users (
     user_id BIGINT PRIMARY KEY,
     username VARCHAR(255),
     plan_id INT REFERENCES plans(plan_id) DEFAULT 1,
-    -- THIS IS THE CORRECTED LINE --
     role VARCHAR(50) DEFAULT 'user' NOT NULL,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -20,23 +19,24 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS channels (
     channel_id BIGINT PRIMARY KEY,
     channel_name VARCHAR(255) NOT NULL,
-    admin_id BIGINT REFERENCES users(user_id)
+    admin_id BIGINT REFERENCES users(user_id) ON DELETE CASCADE
 );
 
 -- Scheduler Table: Stores posts to be sent
-CREATE TABLE IF NOT EXISTS scheduler (
+CREATE TABLE IF NOT EXISTS scheduled_posts (
     post_id SERIAL PRIMARY KEY,
     channel_id BIGINT REFERENCES channels(channel_id) ON DELETE CASCADE,
     text TEXT,
     file_id VARCHAR(255),
-    file_type VARCHAR(50), -- e.g., 'photo', 'video'
+    file_type VARCHAR(50),
     schedule_time TIMESTAMP WITH TIME ZONE NOT NULL,
-    status VARCHAR(50) DEFAULT 'pending', -- pending, sent, failed
+    status VARCHAR(50) DEFAULT 'pending',
     sent_message_id BIGINT,
+    views INT DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Seed the initial data for the plans
-INSERT INTO plans (plan_name, max_channels, max_posts_per_month)
-VALUES ('free', 3, 30)
-ON CONFLICT (plan_name) DO NOTHING;
+INSERT INTO plans (plan_id, plan_name, max_channels, max_posts_per_month)
+VALUES (1, 'free', 3, 30)
+ON CONFLICT (plan_id) DO NOTHING;
