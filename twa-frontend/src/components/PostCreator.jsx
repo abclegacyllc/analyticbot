@@ -3,34 +3,36 @@ import './PostCreator.css';
 
 const webApp = window.Telegram.WebApp;
 
-// We pass channels, isLoading, and the new callback as props
-const PostCreator = ({ channels, isLoading, onPostScheduled }) => {
-  const [postText, setPostText] = useState('');
+// We now receive pendingMedia from App.jsx
+const PostCreator = ({ channels, isLoading, pendingMedia, onPostScheduled }) => {
+  const [postText, setPostText] = useState(''); // This now serves as the caption
   const [channelId, setChannelId] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   
   const mainButton = webApp.MainButton;
 
-  // When channels are loaded, select the first one by default
   useEffect(() => {
     if (!isLoading && channels.length > 0) {
       setChannelId(channels[0].id);
     }
   }, [isLoading, channels]);
 
-  // Logic to control the main button
+  // Logic to control the main "Schedule" button
   useEffect(() => {
-    if (postText.trim() !== '' && channelId && scheduleTime) {
+    // A post is valid if it has a channel, a time, AND (either text OR pending media)
+    const isReady = channelId && scheduleTime && (postText.trim() !== '' || pendingMedia);
+
+    if (isReady) {
       mainButton.setParams({
         text: 'Schedule Post',
-        color: '#2481CC', // A nice blue color
+        color: '#2481CC',
         is_visible: true,
         is_active: true,
       });
     } else {
       mainButton.hide();
     }
-  }, [postText, channelId, scheduleTime, mainButton]);
+  }, [postText, channelId, scheduleTime, pendingMedia, mainButton]);
 
   // Logic to send data to the bot
   useEffect(() => {
@@ -40,20 +42,20 @@ const PostCreator = ({ channels, isLoading, onPostScheduled }) => {
         text: postText,
         channel_id: channelId,
         schedule_time: scheduleTime,
+        // Include media info if it exists
+        file_id: pendingMedia ? pendingMedia.file_id : null,
+        file_type: pendingMedia ? pendingMedia.file_type : null,
       };
       webApp.sendData(JSON.stringify(dataToSend));
-      // Call the callback function passed from App.jsx
       onPostScheduled();
     };
 
-    mainButton.onClick(handleSendData);
+    mainButton.on('click', handleSendData);
 
-    // Cleanup the event listener
     return () => {
-        mainButton.offClick(handleSendData);
+        mainButton.off('click', handleSendData);
     };
-  }, [postText, channelId, scheduleTime, onPostScheduled, mainButton]);
-
+  }, [postText, channelId, scheduleTime, pendingMedia, onPostScheduled, mainButton]);
 
   return (
     <div className="post-creator">
@@ -76,19 +78,19 @@ const PostCreator = ({ channels, isLoading, onPostScheduled }) => {
               </option>
             ))
           ) : (
-            <option>No channels found. Use /add_channel in the bot.</option>
+            <option>No channels found.</option>
           )}
         </select>
       </div>
 
       <div className="form-group">
-        <label htmlFor="post-text">Text:</label>
+        <label htmlFor="post-text">Caption (optional for media):</label>
         <textarea
           id="post-text"
           value={postText}
           onChange={(e) => setPostText(e.target.value)}
-          placeholder="Enter your post text here..."
-          rows="8"
+          placeholder="Enter your post text or caption here..."
+          rows="6"
         />
       </div>
 
