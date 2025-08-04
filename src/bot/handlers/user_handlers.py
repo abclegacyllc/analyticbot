@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 @router.message(F.web_app_data)
 async def handle_web_app_data(
-    message: Message,
+    message: types.Message,
     i18n: I18nContext,
     bot: Bot,
     channel_repo: ChannelRepository,
@@ -47,13 +47,14 @@ async def handle_web_app_data(
     try:
         response_payload = {}
         title = "Unknown Response"
+        request_type = data.get('type')
 
-        if data.get('type') == 'get_channels':
+        if request_type == 'get_channels':
             title = "Channels Response"
             user_channels = await channel_repo.get_user_channels(message.from_user.id)
             response_payload = [{"id": str(ch['channel_id']), "name": ch['channel_name']} for ch in user_channels]
 
-        elif data.get('type') == 'get_scheduled_posts':
+        elif request_type == 'get_scheduled_posts':
             title = "Scheduled Posts Response"
             pending_posts = await scheduler_repo.get_pending_posts_by_user(message.from_user.id)
             response_payload = [
@@ -64,20 +65,28 @@ async def handle_web_app_data(
                 } for post in pending_posts
             ]
 
-        # For other types like 'new_post' or 'delete_post', we just send an empty successful response
-        elif data.get('type') in ['new_post', 'delete_post']:
+        elif request_type == 'new_post':
             title = "Action Acknowledged"
-            # Handle the actual action
-            if data.get('type') == 'new_post':
-                # ... (new_post logic)
-            elif data.get('type') == 'delete_post':
-                # ... (delete_post logic)
+            channel_id = int(data.get('channel_id'))
+            post_text = data.get('text', 'No text provided')
+            naive_dt = datetime.fromisoformat(data.get('schedule_time'))
+            aware_dt = naive_dt.replace(tzinfo=timezone.utc)
+            await scheduler_service.schedule_post(channel_id, post_text, aware_dt)
+            # No response payload needed, just an acknowledgement.
 
-        result = InlineQueryResultArticle(
+        # --- FIX IS HERE ---
+        # The logic for delete_post is now correctly indented inside the elif block.
+        elif request_type == 'delete_post':
+            title = "Action Acknowledged"
+            post_id = int(data.get('post_id'))
+            await scheduler_service.delete_post(post_id)
+            # No response payload needed.
+
+        # Send the response back to the TWA
+        result = types.InlineQueryResultArticle(
             id=query_id,
             title=title,
-            # Let's try sending a more descriptive text.
-            input_message_content=InputTextMessageContent(
+            input_message_content=types.InputTextMessageContent(
                 message_text=f"Processed TWA request: {title}"
             ),
             description=json.dumps(response_payload)
@@ -86,12 +95,12 @@ async def handle_web_app_data(
 
     except Exception as e:
         logger.error(f"Error processing TWA data: {e}", exc_info=True)
-        # You can also try to notify the user via answer_web_app_query
+        # Try to notify the user via TWA about the error
         await bot.answer_web_app_query(query_id, results=[
-            InlineQueryResultArticle(
+            types.InlineQueryResultArticle(
                 id=query_id,
                 title="Error",
-                input_message_content=InputTextMessageContent(message_text="An error occurred."),
+                input_message_content=types.InputTextMessageContent(message_text="An error occurred."),
                 description=json.dumps({"error": str(e)})
             )
         ])
