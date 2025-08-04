@@ -102,28 +102,82 @@ async def handle_web_app_data(
         logger.error(f"An error occurred in handle_web_app_data: {e}", exc_info=True)
 
 
-@router.message(F.photo | F.video)
-async def handle_media(message: Message, i18n: I18nContext, state: FSMContext):
+@router.message(F.web_app_data)
+async def handle_web_app_data(
+    message: Message,
+    channel_repo: ChannelRepository,
+    scheduler_repo: SchedulerRepository,
+    scheduler_service: SchedulerService,
+    state: FSMContext,
+):
     """
-    Catches photos and videos sent by the user and saves their file_id
-    to Redis temporarily for the TWA to use.
+    Handles all data requests and actions from the TWA.
     """
-    file_id = ""
-    file_type = ""
+    try:
+        data = json.loads(message.web_app_data.data)
+        request_type = data.get('type')
 
-    if message.photo:
-        file_id = message.photo[-1].file_id
-        file_type = 'photo'
-    elif message.video:
-        file_id = message.video.file_id
-        file_type = 'video'
+        response_data = {}
+        response_type = "unknown_response"
 
-    if file_id:
-        await state.update_data(
-            media_file_id=file_id,
-            media_file_type=file_type
-        )
-        await message.answer(i18n.get("media-received-success"))
+        # --- HANDLE DATA REQUEST ---
+        if request_type == 'get_initial_data':
+            # TWA is requesting all data at once
+            user_channels = await channel_repo.get_user_channels(message.from_user.id)
+            pending_posts = await scheduler_repo.get_pending_posts_by_user(message.from_user.id)
+            user_state = await state.get_data()
+            
+            response_data = {
+                "channels": [{"id": str(ch['channel_id']), "name": ch['channel_name']} for ch in user_channels],
+                "posts": [
+                    {
+                        "id": post['post_id'], "text": post['text'],
+                        "schedule_time": post['schedule_time'].isoformat(),
+                        "channel_name": post['channel_name'],
+                        "file_id": post['file_id'], # Pass media info for the list
+                        "file_type": post['file_type']
+                    } for post in pending_posts
+                ],
+                "media": { # Pass the temporarily stored media info
+                    "file_id": user_state.get('media_file_id'),
+                    "file_type": user_state.get('media_file_type')
+                }
+            }
+            response_type = "initial_data_response"
+        
+        # --- HANDLE ACTIONS ---
+        elif request_type == 'new_post':
+            try:
+                await scheduler_service.schedule_post(
+                    channel_id=int(data.get('channel_id')),
+                    text=data.get('text'),
+                    schedule_time=datetime.fromisoformat(data.get('schedule_time')),
+                    file_id=data.get('file_id'),
+                    file_type=data.get('file_type')
+                )
+                # After scheduling, clear the temporary media from state
+                await state.update_data(media_file_id=None, media_file_type=None)
+            except Exception as e:
+                logger.error(f"Failed to create post: {e}")
+            return # Actions don't need a data response
+
+        elif request_type == 'delete_post':
+            try:
+                await scheduler_service.delete_post(int(data.get('post_id')))
+            except Exception as e:
+                logger.error(f"Failed to delete post: {e}")
+            return # Actions don't need a data response
+
+        # --- SEND DATA RESPONSE BACK TO TWA ---
+        if response_type != "unknown_response":
+            formatted_message = (
+                f"<pre>__TWA_RESPONSE__||{response_type}||"
+                f"{json.dumps(response_data)}</pre>"
+            )
+            await message.answer(formatted_message, parse_mode="HTML")
+
+    except Exception as e:
+        logger.error(f"An error occurred in handle_web_app_data: {e}", exc_info=True)
 
 
 @router.message(CommandStart())
