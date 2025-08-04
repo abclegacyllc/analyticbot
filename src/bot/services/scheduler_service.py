@@ -3,12 +3,9 @@ from apscheduler.jobstores.base import JobLookupError
 from src.bot.database.repositories import SchedulerRepository
 from datetime import datetime
 import logging
-from typing import Optional  # <-- THIS IS THE FIX
+from typing import Optional
 
 from src.bot.tasks import send_scheduled_message
-from src.bot.bot import bot
-from src.bot.database.db import create_pool
-
 
 logger = logging.getLogger(__name__)
 
@@ -25,35 +22,23 @@ class SchedulerService:
         file_id: Optional[str] = None,
         file_type: Optional[str] = None
     ) -> str:
-        """Saves a post (text or media) to the DB and schedules it for sending."""
-        # A post must have either text or a file
+        """Saves a post to the DB and schedules a self-sufficient task."""
         if not text and not file_id:
             raise ValueError("Post must have either text or a file.")
 
         post_id = await self.repository.create_scheduled_post(
-            channel_id=channel_id,
-            schedule_time=schedule_time,
-            text=text,
-            file_id=file_id,
-            file_type=file_type
+            channel_id, schedule_time, text, file_id, file_type
         )
         job_id = str(post_id)
 
-        # We must pass the bot and a database pool connection to the job
-        # so it can function when it runs in the background.
-        db_pool = await create_pool()
-
+        # The task is now self-sufficient, we only need to pass the post_id
         self.scheduler.add_job(
             send_scheduled_message,
             trigger='date',
             run_date=schedule_time,
             id=job_id,
             misfire_grace_time=300,
-            kwargs={
-                "bot": bot,
-                "db_pool": db_pool,
-                "post_id": post_id
-            }
+            args=[post_id]  # Only pass simple, pickle-safe arguments
         )
         logger.info(f"Scheduled job {job_id} for post {post_id} at {schedule_time}")
         return job_id
@@ -63,14 +48,7 @@ class SchedulerService:
         job_id = str(post_id)
         try:
             self.scheduler.remove_job(job_id)
-            logger.info(f"Removed job {job_id} from scheduler.")
         except JobLookupError:
-            logger.warning(f"Job {job_id} not found in scheduler, but proceeding with DB deletion.")
-
-        was_deleted = await self.repository.delete_scheduled_post(post_id)
-        if was_deleted:
-            logger.info(f"Deleted post {post_id} from database.")
-        else:
-            logger.warning(f"Post {post_id} not found in the database for deletion.")
-
-        return was_deleted
+            logger.warning(f"Job {job_id} not found in scheduler.")
+        
+        return await self.repository.delete_scheduled_post(post_id)
