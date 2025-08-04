@@ -41,7 +41,6 @@ async def handle_web_app_data(
 
         # --- HANDLE DATA REQUEST ---
         if request_type == 'get_initial_data':
-            # TWA is requesting all data at once
             user_channels = await channel_repo.get_user_channels(message.from_user.id)
             pending_posts = await scheduler_repo.get_pending_posts_by_user(message.from_user.id)
             user_state = await state.get_data()
@@ -50,14 +49,14 @@ async def handle_web_app_data(
                 "channels": [{"id": str(ch['channel_id']), "name": ch['channel_name']} for ch in user_channels],
                 "posts": [
                     {
-                        "id": post['post_id'], "text": post['text'] or "", # Ensure text is not None
+                        "id": post['post_id'], "text": post['text'] or "",
                         "schedule_time": post['schedule_time'].isoformat(),
                         "channel_name": post['channel_name'],
-                        "file_id": post['file_id'], # Pass media info for the list
+                        "file_id": post['file_id'],
                         "file_type": post['file_type']
                     } for post in pending_posts
                 ],
-                "media": { # Pass the temporarily stored media info
+                "media": {
                     "file_id": user_state.get('media_file_id'),
                     "file_type": user_state.get('media_file_type')
                 }
@@ -74,22 +73,19 @@ async def handle_web_app_data(
                     file_id=data.get('file_id'),
                     file_type=data.get('file_type')
                 )
-                # After scheduling, clear the temporary media from state
                 await state.update_data(media_file_id=None, media_file_type=None)
             except Exception as e:
                 logger.error(f"Failed to create post: {e}")
-            return # Actions don't need a data response
+            return
 
         elif request_type == 'delete_post':
             try:
                 await scheduler_service.delete_post(int(data.get('post_id')))
             except Exception as e:
                 logger.error(f"Failed to delete post: {e}")
-            return # Actions don't need a data response
+            return
 
-        # --- SEND DATA RESPONSE BACK TO TWA ---
         if response_type != "unknown_response":
-            # We add a special wrapper to make it easy to parse on the frontend
             formatted_message = (
                 f"<pre>__TWA_RESPONSE__||{response_type}||"
                 f"{json.dumps(response_data)}</pre>"
@@ -111,7 +107,6 @@ async def cmd_start(message: Message, i18n: I18nContext, user_repo: UserReposito
 
 @router.message(Command("dashboard"))
 async def cmd_dashboard(message: Message, i18n: I18nContext):
-    # Make sure your TWA_HOST_URL in the .env file is correct
     web_app_info = WebAppInfo(url=str(settings.TWA_HOST_URL))
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text=i18n.get("menu-button-dashboard"), web_app=web_app_info)]
@@ -132,13 +127,11 @@ async def my_plan_handler(
     text = [f"<b>{i18n.get('myplan-header')}</b>\n"]
     text.append(i18n.get("myplan-plan-name", plan_name=status.plan_name.upper()))
 
-    # Show channel usage
     if status.max_channels == -1:
         text.append(i18n.get("myplan-channels-unlimited", current=status.current_channels))
     else:
         text.append(i18n.get("myplan-channels-limit", current=status.current_channels, max=status.max_channels))
 
-    # Show post usage
     if status.max_posts_per_month == -1:
         text.append(i18n.get("myplan-posts-unlimited", current=status.current_posts_this_month))
     else:
@@ -146,17 +139,19 @@ async def my_plan_handler(
 
     await message.answer("\n".join(text))
 
+# --- MUHIM O'ZGARISHLAR SHU YERDA ---
 
-@router.message(F.PHOTO | F.VIDEO)
+# 1-O'ZGARISH: Filtrni aniqroq qilib qayta yozdik va log qo'shdik.
+@router.message(F.content_type.in_({types.ContentType.PHOTO, types.ContentType.VIDEO}))
 async def handle_media(message: Message, state: FSMContext, i18n: I18nContext):
     """
     Catches photos and videos sent directly to the bot and saves their info to FSM state.
     """
+    logger.info(f"--- handle_media triggered! Content type: {message.content_type} ---") # DIAGNOSTIKA UCHUN
     file_id = None
     file_type = None
 
     if message.photo:
-        # Get the largest available photo
         file_id = message.photo[-1].file_id
         file_type = 'photo'
     elif message.video:
@@ -164,7 +159,19 @@ async def handle_media(message: Message, state: FSMContext, i18n: I18nContext):
         file_type = 'video'
 
     if file_id and file_type:
-        # Save the media info temporarily in the user's state
         await state.update_data(media_file_id=file_id, media_file_type=file_type)
-        # Notify the user that the media is ready for scheduling via TWA
         await message.answer(i18n.get("media-received-success"))
+    else:
+        logger.warning("Media handler was triggered but could not extract file_id or file_type.")
+
+# 2-O'ZGARISH: Boshqa barcha xabarlarni ushlab oluvchi "tuzoq" qo'shdik.
+# Bu eng oxirida turishi SHART.
+@router.message()
+async def unhandled_message_handler(message: Message):
+    """
+    This is a catch-all handler for any message that wasn't handled by the others.
+    """
+    logger.info(
+        f"CATCH-ALL HANDLER: Caught a message that was not handled by other functions. "
+        f"Content type: {message.content_type}. Text: '{message.text}'"
+    )
