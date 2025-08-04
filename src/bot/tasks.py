@@ -20,7 +20,6 @@ async def send_scheduled_message(
 ):
     """
     This function is called by the scheduler when a post is due.
-    It's not run as a persistent background job, so it can still receive dependencies.
     """
     logger.info(f"Executing job for post_id: {post_id}")
     repo = SchedulerRepository(db_pool)
@@ -45,12 +44,10 @@ async def send_scheduled_message(
 
 async def update_all_post_views():
     """
-    A self-sufficient background job that periodically fetches view counts.
-    It creates its own connections and can be safely pickled.
+    A self-sufficient background job that creates its own connections.
     """
     logger.info("Starting background task: update_all_post_views")
     
-    # --- FIX IS HERE: Create temporary connections inside the task ---
     temp_bot = Bot(token=settings.BOT_TOKEN.get_secret_value())
     temp_pool = await create_pool()
     
@@ -80,6 +77,6 @@ async def update_all_post_views():
     except Exception as e:
         logger.error(f"Error during update_all_post_views task: {e}", exc_info=True)
     finally:
-        # --- IMPORTANT: Always close temporary connections ---
         await temp_pool.close()
+        # Cleanly close the bot session
         await (await temp_bot.get_session()).close()
