@@ -6,7 +6,7 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from aiogram import Dispatcher
 from aiogram.fsm.storage.redis import RedisStorage
 
-from src.bot.bot import bot # We only import the bot object now
+from src.bot.bot import bot
 from src.bot.handlers import user_handlers, admin_handlers
 from src.bot.config import settings
 from src.bot.database.db import create_pool
@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 
 
 async def main():
-    # --- ALL CONNECTIONS AND SETUP ARE CENTRALIZED HERE ---
+    # --- CONNECTIONS AND SETUP ---
     
     # 1. Create connections
     db_pool = await create_pool()
@@ -40,7 +40,7 @@ async def main():
     # 2. Create FSM Storage
     storage = RedisStorage(redis=redis_conn)
 
-    # 3. Create Dispatcher instance WITH the storage
+    # 3. Create Dispatcher instance
     dp = Dispatcher(storage=storage)
 
     # 4. Setup i18n middleware
@@ -64,7 +64,7 @@ async def main():
     scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
     scheduler_service = SchedulerService(scheduler, scheduler_repo)
 
-    # 7. Pass dependencies to handlers
+    # 7. Pass dependencies to handlers via middleware
     dp.update.outer_middleware.register(DependencyMiddleware(
         user_repo=user_repo,
         channel_repo=channel_repo,
@@ -87,14 +87,24 @@ async def main():
     )
 
     # 9. Register routers
-    dp.include_router(admin_handlers.router)
-    dp.include_router(user_handlers.router)
+    # --- YANGI QO'SHILGAN LOGLAR ---
+    try:
+        logger.info("Including admin handlers...")
+        dp.include_router(admin_handlers.router)
+        logger.info("Admin handlers included successfully.")
+
+        logger.info("Including user handlers...")
+        dp.include_router(user_handlers.router)
+        logger.info("User handlers included successfully.")
+    except Exception as e:
+        logger.error(f"Failed to include routers: {e}", exc_info=True)
+        return
 
     # 10. Start everything
     try:
         logger.info("Starting scheduler...")
         scheduler.start()
-        logger.info("Starting bot...")
+        logger.info("Starting bot polling...")
         await dp.start_polling(bot)
     finally:
         logger.info("Shutting down...")
@@ -102,6 +112,8 @@ async def main():
             scheduler.shutdown()
         await db_pool.close()
         await redis_conn.aclose()
+        await (await bot.get_session()).close()
+
 
 if __name__ == "__main__":
     try:
