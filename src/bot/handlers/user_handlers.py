@@ -1,55 +1,51 @@
 import json
-from datetime import datetime, timezone # <-- ADDED timezone
+from datetime import datetime, timezone
 from aiogram import Router, F, types, Bot
-# --- ADDED IMPORTS for answerWebAppQuery ---
 from aiogram.types import Message, WebAppInfo, MenuButtonWebApp, InlineQueryResultArticle, InputTextMessageContent
 from aiogram.filters import CommandStart, Command
 from aiogram_i18n import I18nContext
 
-from src.bot.database.repositories import UserRepository, ChannelRepository # <-- ADDED ChannelRepository
+# --- NEW IMPORT ---
+# Import the central settings object
+from src.bot.config import settings
+from src.bot.database.repositories import UserRepository, ChannelRepository
 from src.bot.services.guard_service import GuardService
-from src.bot.services.scheduler_service import SchedulerService # <-- ADDED SchedulerService
+from src.bot.services.scheduler_service import SchedulerService
 from src.bot.services.subscription_service import SubscriptionService
 
 
 router = Router()
 
-# --- UPDATED HANDLER FOR DATA FROM WEB APP ---
+# ... handle_web_app_data function stays the same ...
 @router.message(F.web_app_data)
 async def handle_web_app_data(
     message: Message, 
     i18n: I18nContext, 
-    bot: Bot, # <-- ADDED bot instance
-    channel_repo: ChannelRepository, # <-- ADDED channel_repo
-    scheduler_service: SchedulerService, # <-- ADDED scheduler_service
+    bot: Bot,
+    channel_repo: ChannelRepository,
+    scheduler_service: SchedulerService,
 ):
-    """
-    This handler receives data sent from the Telegram Web App.
-    """
+# ... this function's code is unchanged ...
     data = json.loads(message.web_app_data.data)
-    query_id = message.web_app_data.query_id # Get the query_id for the response
+    query_id = message.web_app_data.query_id 
 
-    # --- HANDLE CHANNEL LIST REQUEST ---
     if data.get('type') == 'get_channels':
         user_channels = await channel_repo.get_user_channels(message.from_user.id)
         
-        # Format channels for sending to the web app
         channels_payload = [
             {"id": str(ch['channel_id']), "name": ch['channel_name']} for ch in user_channels
         ]
         
-        # Send the channel list back to the TWA as a JSON string
         result = InlineQueryResultArticle(
-            id=query_id, # Must be unique, so we use the query_id
+            id=query_id,
             title="Channels Response",
-            input_message_content=InputTextMessageContent(message_text="."), # Required but not shown
-            description=json.dumps(channels_payload) # <-- OUR DATA PAYLOAD
+            input_message_content=InputTextMessageContent(message_text="."),
+            description=json.dumps(channels_payload)
         )
         
         await bot.answer_web_app_query(query_id, results=[result])
-        return # Stop processing after sending the channel list
+        return
 
-    # --- HANDLE NEW POST SUBMISSION ---
     elif data.get('type') == 'new_post':
         try:
             channel_id = int(data.get('channel_id'))
@@ -82,8 +78,8 @@ async def handle_web_app_data(
 async def cmd_start(
     message: Message,
     i18n: I18nContext,
-    user_repo: UserRepository, # Dependency injected by middleware
-    bot: Bot # Getting the bot instance itself
+    user_repo: UserRepository,
+    bot: Bot
 ):
     # Create or update user
     await user_repo.create_user(
@@ -91,13 +87,14 @@ async def cmd_start(
         username=message.from_user.username,
     )
 
-    # Set the menu button
-    dashboard_url = "https://jubilant-enigma-x5q55p7vpwrr3vp56-5173.app.github.dev/"
+    # --- MODIFIED PART ---
+    # The menu button URL is now loaded from our configuration settings
     await bot.set_chat_menu_button(
         chat_id=message.chat.id,
         menu_button=MenuButtonWebApp(
             text=i18n.get("menu-button-dashboard"),
-            web_app=WebAppInfo(url=dashboard_url)
+            # Convert the Pydantic AnyHttpUrl to a string for the API call
+            web_app=WebAppInfo(url=str(settings.TWA_HOST_URL))
         )
     )
     
@@ -107,12 +104,14 @@ async def cmd_start(
     )
 
 
+# ... my_plan_handler and check_blacklist_handler stay the same ...
 @router.message(Command("myplan"))
 async def my_plan_handler(
     message: Message,
     i18n: I18nContext,
-    subscription_service: SubscriptionService, # Dependency injected
+    subscription_service: SubscriptionService,
 ):
+# ... this function's code is unchanged ...
     status = await subscription_service.get_user_subscription_status(message.from_user.id)
     
     if not status:
@@ -132,13 +131,13 @@ async def my_plan_handler(
         text.append(i18n.get("myplan-posts-limit", current=status.current_posts_this_month, max=status.max_posts_per_month))
 
     await message.answer("\n".join(text))
-    
 
 @router.message(F.text)
 async def check_blacklist_handler(
     message: Message,
-    guard_service: GuardService # Dependency injected by middleware
+    guard_service: GuardService
 ):
+# ... this function's code is unchanged ...
     if message.chat.type in ["group", "supergroup", "channel"]:
         is_blocked = await guard_service.is_blocked(message.chat.id, message.text)
         
