@@ -3,30 +3,28 @@ import './PostCreator.css';
 
 const webApp = window.Telegram.WebApp;
 
-// We receive channels, loading state, pendingMedia, and the onPostScheduled callback
 const PostCreator = ({ channels, isLoading, pendingMedia, onPostScheduled }) => {
-  const [postText, setPostText] = useState(''); // This serves as the caption for media
+  const [postText, setPostText] = useState('');
   const [channelId, setChannelId] = useState('');
   const [scheduleTime, setScheduleTime] = useState('');
   
   const mainButton = webApp.MainButton;
 
-  // Effect to select the first channel by default when the list loads
+  // TUZATISH: Bu effekt endi faqat kanallar birinchi marta yuklanganda ishlaydi
+  // va tanlangan kanalni qayta-qayta o'zgartirib yubormaydi.
   useEffect(() => {
     if (!isLoading && channels.length > 0 && !channelId) {
       setChannelId(channels[0].id);
     }
   }, [isLoading, channels, channelId]);
 
-  // Effect to control the visibility and state of the main "Schedule" button
   useEffect(() => {
-    // A post is considered ready if it has a channel, a time, AND (either text OR a pending media file)
     const isReady = channelId && scheduleTime && (postText.trim() !== '' || pendingMedia);
 
     if (isReady) {
       mainButton.setParams({
         text: 'Schedule Post',
-        color: '#2481CC', // A standard blue color
+        color: '#2481CC',
         is_visible: true,
         is_active: true,
       });
@@ -35,7 +33,6 @@ const PostCreator = ({ channels, isLoading, pendingMedia, onPostScheduled }) => 
     }
   }, [postText, channelId, scheduleTime, pendingMedia, mainButton]);
 
-  // Effect to handle sending the data when the main button is clicked
   useEffect(() => {
     const handleSendData = () => {
       const dataToSend = {
@@ -43,20 +40,17 @@ const PostCreator = ({ channels, isLoading, pendingMedia, onPostScheduled }) => 
         text: postText,
         channel_id: channelId,
         schedule_time: scheduleTime,
-        // Include media info only if it exists
         file_id: pendingMedia ? pendingMedia.file_id : null,
         file_type: pendingMedia ? pendingMedia.file_type : null,
       };
       webApp.sendData(JSON.stringify(dataToSend));
-      // Notify the parent App component that scheduling is done
       onPostScheduled();
     };
 
     mainButton.onClick(handleSendData);
 
-    // Cleanup the event listener when the component re-renders or unmounts
     return () => {
-        mainButton.offClick(handleSendData);
+      mainButton.offClick(handleSendData);
     };
   }, [postText, channelId, scheduleTime, pendingMedia, onPostScheduled, mainButton]);
 
