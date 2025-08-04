@@ -1,6 +1,7 @@
 import asyncpg
 from datetime import datetime
-from typing import Optional, Dict, Any
+# --- IMPORT LIST AND ANY ---
+from typing import Optional, Dict, Any, List
 
 class SchedulerRepository:
     def __init__(self, pool: asyncpg.Pool):
@@ -47,3 +48,29 @@ class SchedulerRepository:
                 """,
                 user_id
             )
+# --- NEW METHOD 1: GET PENDING POSTS ---
+    async def get_pending_posts_by_user(self, user_id: int) -> List[Dict[str, Any]]:
+        """Retrieves all posts with 'pending' status for a specific user."""
+        async with self.pool.acquire() as conn:
+            return await conn.fetch(
+                """
+                SELECT
+                    sp.post_id,
+                    sp.text,
+                    sp.schedule_time,
+                    c.channel_name
+                FROM scheduled_posts sp
+                JOIN channels c ON sp.channel_id = c.channel_id
+                WHERE c.admin_id = $1 AND sp.status = 'pending'
+                ORDER BY sp.schedule_time ASC;
+                """,
+                user_id
+            )
+
+    # --- NEW METHOD 2: DELETE POST ---
+    async def delete_scheduled_post(self, post_id: int) -> bool:
+        """Deletes a post from the database and returns True if successful."""
+        async with self.pool.acquire() as conn:
+            result = await conn.execute("DELETE FROM scheduled_posts WHERE post_id = $1", post_id)
+            # The result is a string like 'DELETE 1', so we check if a row was deleted.
+            return result != 'DELETE 0'
