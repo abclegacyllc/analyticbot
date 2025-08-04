@@ -1,5 +1,5 @@
 import React from 'react';
-import './ScheduledPostsList.css'; // We will create this file next
+import './ScheduledPostsList.css';
 
 // A helper function to format the date nicely
 const formatScheduleTime = (isoString) => {
@@ -15,7 +15,18 @@ const formatScheduleTime = (isoString) => {
   });
 };
 
-const ScheduledPostsList = ({ posts, onDelete }) => {
+const ScheduledPostsList = ({ posts, onDelete, isLoading }) => {
+  // Show a loading message if data is not ready yet
+  if (isLoading) {
+    return (
+        <div className="scheduled-posts-container">
+            <h3>Scheduled Posts</h3>
+            <p className="no-posts-message">Loading...</p>
+        </div>
+    );
+  }
+
+  // Show a different message if loading is finished but there are no posts
   if (posts.length === 0) {
     return (
       <div className="scheduled-posts-container">
@@ -36,7 +47,7 @@ const ScheduledPostsList = ({ posts, onDelete }) => {
                 {post.text.length > 80 ? `${post.text.substring(0, 80)}...` : post.text}
               </span>
               <span className="post-details">
-                To: <strong>@{post.channel_name}</strong> on {formatScheduleTime(post.schedule_time)}
+                To: <strong>{post.channel_name}</strong> on {formatScheduleTime(post.schedule_time)}
               </span>
             </div>
             <button
