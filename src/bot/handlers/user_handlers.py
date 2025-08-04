@@ -33,15 +33,9 @@ async def handle_web_app_data(
     scheduler_service: SchedulerService,
     state: FSMContext,
 ):
-    """
-    Handles all data requests and actions from the TWA.
-    """
     try:
         data = json.loads(message.web_app_data.data)
         request_type = data.get("type")
-
-        response_data = {}
-        response_type = "unknown_response"
 
         # --- HANDLE DATA REQUEST ---
         if request_type == "get_initial_data":
@@ -59,8 +53,6 @@ async def handle_web_app_data(
                 "posts": [
                     {
                         "id": post["post_id"],
-                        # --- MUHIM TUZATISH SHU YERDA ---
-                        # Agar post['text'] None bo'lsa, uni bo'sh satrga o'zgartiramiz
                         "text": post["text"] or "",
                         "schedule_time": post["schedule_time"].isoformat(),
                         "channel_name": post["channel_name"],
@@ -74,49 +66,43 @@ async def handle_web_app_data(
                     "file_type": user_state.get("media_file_type"),
                 },
             }
-            response_type = "initial_data_response"
+
+            # --- JAVOB YUBORISH MANTIG'INI TO'LIQ O'ZGARTIRDIK ---
+            logger.info("Sending 'initial_data_response' to TWA.")
+            # Biz endi oddiy va ishonchli JSON formatida javob yuboramiz
+            await message.answer(json.dumps({
+                "type": "initial_data_response",
+                "data": response_data
+            }))
+            return # Javob yuborilgach, funksiyadan chiqamiz
 
         # --- HANDLE ACTIONS ---
         elif request_type == "new_post":
-            try:
-                await scheduler_service.schedule_post(
-                    channel_id=int(data.get("channel_id")),
-                    text=data.get("text"),
-                    schedule_time=datetime.fromisoformat(data.get("schedule_time")),
-                    file_id=data.get("file_id"),
-                    file_type=data.get("file_type"),
-                )
-                await state.update_data(media_file_id=None, media_file_type=None)
-            except Exception as e:
-                logger.error(f"Failed to create post: {e}")
-            return
+            # ... (bu qism o'zgarmaydi)
+            await scheduler_service.schedule_post(
+                channel_id=int(data.get("channel_id")),
+                text=data.get("text"),
+                schedule_time=datetime.fromisoformat(data.get("schedule_time")),
+                file_id=data.get("file_id"),
+                file_type=data.get("file_type"),
+            )
+            await state.update_data(media_file_id=None, media_file_type=None)
 
         elif request_type == "delete_post":
-            try:
-                await scheduler_service.delete_post(int(data.get("post_id")))
-            except Exception as e:
-                logger.error(f"Failed to delete post: {e}")
-            return
-
-        # --- SEND DATA RESPONSE BACK TO TWA ---
-        if response_type != "unknown_response":
-            formatted_message = (
-                f"<pre>__TWA_RESPONSE__||{response_type}||"
-                f"{json.dumps(response_data)}</pre>"
-            )
-            await message.answer(formatted_message, parse_mode="HTML")
+            # ... (bu qism o'zgarmaydi)
+            await scheduler_service.delete_post(int(data.get("post_id")))
 
     except Exception as e:
-        logger.error(f"An error occurred in handle_web_app_data: {e}", exc_info=True)
+        logger.error(f"Critical error in handle_web_app_data: {e}", exc_info=True)
 
 
+# ... (qolgan barcha funksiyalar o'zgarishsiz qoladi) ...
 @router.message(CommandStart())
 async def cmd_start(message: Message, i18n: I18nContext, user_repo: UserRepository):
     await user_repo.create_user(
         user_id=message.from_user.id, username=message.from_user.username
     )
     await message.answer(i18n.get("start_message", user_name=message.from_user.full_name))
-
 
 @router.message(Command("dashboard"))
 async def cmd_dashboard(message: Message, i18n: I18nContext):
@@ -131,7 +117,6 @@ async def cmd_dashboard(message: Message, i18n: I18nContext):
         ]
     )
     await message.answer("Click the button below to open your dashboard:", reply_markup=keyboard)
-
 
 @router.message(Command("myplan"))
 async def my_plan_handler(
@@ -178,7 +163,6 @@ async def my_plan_handler(
 
     await message.answer("\n".join(text))
 
-
 @router.message(F.content_type.in_({types.ContentType.PHOTO, types.ContentType.VIDEO}))
 async def handle_media(message: Message, state: FSMContext, i18n: I18nContext):
     logger.info(f"--- handle_media triggered! Content type: {message.content_type} ---")
@@ -199,7 +183,6 @@ async def handle_media(message: Message, state: FSMContext, i18n: I18nContext):
         logger.warning(
             "Media handler was triggered but could not extract file_id or file_type."
         )
-
 
 @router.message()
 async def unhandled_message_handler(message: Message):
