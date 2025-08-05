@@ -40,3 +40,7 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
 INSERT INTO plans (plan_id, plan_name, max_channels, max_posts_per_month)
 VALUES (1, 'free', 3, 30)
 ON CONFLICT (plan_id) DO NOTHING;
+
+-- Indexes for performance optimization
+CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts(status, schedule_time);
+CREATE INDEX IF NOT EXISTS idx_channels_admin_id ON channels(admin_id);
