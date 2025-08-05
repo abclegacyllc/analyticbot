@@ -1,7 +1,9 @@
 import json
 import logging
 from datetime import datetime
-from aiogram import Router, F, types
+from aiogram import Router, F, types, Bot
+from aiogram.enums import ChatMemberStatus
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import CommandStart, Command
 from aiogram.fsm.context import FSMContext
 from aiogram.types import (
@@ -25,21 +27,58 @@ router = Router()
 logger = logging.getLogger(__name__)
 
 
-@router.message(F.web_app_data)
+def web_app_data_filter(message: types.Message) -> bool:
+    return message.web_app_data is not None
+
+
+@router.message(web_app_data_filter)
 async def handle_web_app_data(
     message: Message,
+    bot: Bot,
     channel_repo: ChannelRepository,
     scheduler_repo: SchedulerRepository,
     scheduler_service: SchedulerService,
     state: FSMContext,
-    i18n: I18nContext, # i18n ni qo'shdik
 ):
     try:
         data = json.loads(message.web_app_data.data)
         request_type = data.get("type")
+        logger.info(f"Received TWA request: {request_type}")
 
-        # --- HANDLE DATA REQUEST ---
-        if request_type == "get_initial_data":
+        # --- KANAL QO'SHISH SO'ROVI ---
+        if request_type == "add_channel":
+            channel_name = data.get("channel_name")
+            response = {"success": False, "message": "An unexpected error occurred."}
+            if not channel_name or not channel_name.startswith('@'):
+                response["message"] = "Invalid format. Channel username must start with @"
+            else:
+                try:
+                    # Kanal ma'lumotlarini olamiz
+                    chat = await bot.get_chat(chat_id=channel_name)
+                    # Bot kanalda admin ekanligini tekshiramiz
+                    bot_member = await bot.get_chat_member(chat_id=chat.id, user_id=bot.id)
+                    if bot_member.status != ChatMemberStatus.ADMINISTRATOR:
+                        response["message"] = f"Bot is not an admin in {channel_name}. Please add the bot as an admin and try again."
+                    else:
+                        # Kanalni ma'lumotlar bazasiga qo'shamiz
+                        await channel_repo.create_channel(
+                            channel_id=chat.id,
+                            channel_name=chat.title,
+                            admin_id=message.from_user.id
+                        )
+                        response["success"] = True
+                        response["message"] = f"Channel '{chat.title}' added successfully!"
+                except TelegramBadRequest:
+                    response["message"] = f"Channel '{channel_name}' not found or the bot does not have access to it."
+                except Exception as e:
+                    logger.error(f"Error adding channel via TWA: {e}", exc_info=True)
+            
+            # Veb-ilovaga javob yuboramiz
+            await message.answer(json.dumps({"type": "add_channel_response", "data": response}))
+            return
+
+        # --- ASOSIY MA'LUMOTLAR SO'ROVI ---
+        elif request_type == "get_initial_data":
             user_channels = await channel_repo.get_user_channels(message.from_user.id)
             pending_posts = await scheduler_repo.get_pending_posts_by_user(
                 message.from_user.id
@@ -53,14 +92,12 @@ async def handle_web_app_data(
                 ],
                 "posts": [
                     {
-                        "id": post["post_id"],
-                        "text": post["text"] or "",
+                        "id": post["post_id"], "text": post["text"] or "",
                         "schedule_time": post["schedule_time"].isoformat(),
                         "channel_name": post["channel_name"],
-                        "file_id": post["file_id"],
-                        "file_type": post["file_type"],
-                    }
-                    for post in pending_posts
+                        "file_id": post["file_id"], "file_type": post["file_type"],
+                        "inline_buttons": json.loads(post["inline_buttons"]) if post["inline_buttons"] else []
+                    } for post in pending_posts
                 ],
                 "media": {
                     "file_id": user_state.get("media_file_id"),
@@ -68,56 +105,28 @@ async def handle_web_app_data(
                 },
             }
             await message.answer(json.dumps({
-                "type": "initial_data_response",
-                "data": response_data
+                "type": "initial_data_response", "data": response_data
             }))
             return
 
-        # --- HANDLE ACTIONS (with feedback) ---
+        # --- POST YARATISH SO'ROVI ---
         elif request_type == "new_post":
-            try:
-                await scheduler_service.schedule_post(
-                    channel_id=int(data.get("channel_id")),
-                    text=data.get("text"),
-                    schedule_time=datetime.fromisoformat(data.get("schedule_time")),
-                    file_id=data.get("file_id"),
-                    file_type=data.get("file_type"),
-                )
-                await state.update_data(media_file_id=None, media_file_type=None)
-                # Frontend'ga muvaffaqiyatli javob yuborish
-                await message.answer(json.dumps({
-                    "type": "action_success",
-                    "action": "new_post",
-                    "message": "Post muvaffaqiyatli rejalashtirildi!"
-                }))
-            except Exception as e:
-                logger.error(f"Failed to schedule post via TWA: {e}", exc_info=True)
-                # Frontend'ga xatolik haqida javob yuborish
-                await message.answer(json.dumps({
-                    "type": "action_error",
-                    "message": f"Postni rejalashtirishda xatolik yuz berdi: {e}"
-                }))
+            await scheduler_service.schedule_post(
+                channel_id=int(data.get("channel_id")),
+                text=data.get("text"),
+                schedule_time=datetime.fromisoformat(data.get("schedule_time")),
+                file_id=data.get("file_id"),
+                file_type=data.get("file_type"),
+                inline_buttons=data.get("inline_buttons")
+            )
+            await state.update_data(media_file_id=None, media_file_type=None)
+            return
 
+        # --- POSTNI O'CHIRISH SO'ROVI ---
         elif request_type == "delete_post":
-            try:
-                post_id = int(data.get("post_id"))
-                await scheduler_service.delete_post(post_id)
-                # Frontend'ga muvaffaqiyatli javob yuborish
-                await message.answer(json.dumps({
-                    "type": "action_success",
-                    "action": "delete_post",
-                    "message": f"Post #{post_id} muvaffaqiyatli o'chirildi!"
-                }))
-            except Exception as e:
-                logger.error(f"Failed to delete post via TWA: {e}", exc_info=True)
-                # Frontend'ga xatolik haqida javob yuborish
-                await message.answer(json.dumps({
-                    "type": "action_error",
-                    "message": f"Postni o'chirishda xatolik yuz berdi: {e}"
-                }))
+            await scheduler_service.delete_post(int(data.get("post_id")))
+            return
 
-    except json.JSONDecodeError:
-        logger.warning(f"Received invalid JSON from TWA: {message.web_app_data.data}")
     except Exception as e:
         logger.error(f"Critical error in handle_web_app_data: {e}", exc_info=True)
 
@@ -129,19 +138,15 @@ async def cmd_start(message: Message, i18n: I18nContext, user_repo: UserReposito
     )
     await message.answer(i18n.get("start_message", user_name=message.from_user.full_name))
 
+
 @router.message(Command("dashboard"))
 async def cmd_dashboard(message: Message, i18n: I18nContext):
     web_app_info = WebAppInfo(url=str(settings.TWA_HOST_URL))
     keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text=i18n.get("menu-button-dashboard"), web_app=web_app_info
-                )
-            ]
-        ]
+        inline_keyboard=[[InlineKeyboardButton(text=i18n.get("menu-button-dashboard"), web_app=web_app_info)]]
     )
     await message.answer("Click the button below to open your dashboard:", reply_markup=keyboard)
+
 
 @router.message(Command("myplan"))
 async def my_plan_handler(
@@ -188,9 +193,9 @@ async def my_plan_handler(
 
     await message.answer("\n".join(text))
 
+
 @router.message(F.content_type.in_({types.ContentType.PHOTO, types.ContentType.VIDEO}))
 async def handle_media(message: Message, state: FSMContext, i18n: I18nContext):
-    logger.info(f"--- handle_media triggered! Content type: {message.content_type} ---")
     file_id = None
     file_type = None
 
@@ -204,14 +209,11 @@ async def handle_media(message: Message, state: FSMContext, i18n: I18nContext):
     if file_id and file_type:
         await state.update_data(media_file_id=file_id, media_file_type=file_type)
         await message.answer(i18n.get("media-received-success"))
-    else:
-        logger.warning(
-            "Media handler was triggered but could not extract file_id or file_type."
-        )
+
 
 @router.message()
 async def unhandled_message_handler(message: Message):
     logger.info(
-        f"CATCH-ALL HANDLER: Caught a message that was not handled by other functions. "
+        f"CATCH-ALL HANDLER: Caught a message that wasn't handled. "
         f"Content type: {message.content_type}. Text: '{message.text}'"
     )
