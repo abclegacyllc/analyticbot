@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
-import { useAppStore } from '/src/store/appStore.js';
+import { useAppStore } from '../store/appStore.js';
+import ButtonConstructor from './ButtonConstructor.jsx'; // Yangi komponentni import qilamiz
 import './PostCreator.css';
 
 const webApp = window.Telegram.WebApp;
 
 const PostCreator = () => {
-    // Ma'lumotlarni va amallarni to'g'ridan-to'g'ri do'kondan olamiz
     const { channels, isLoading, pendingMedia, schedulePost } = useAppStore();
 
     const [postText, setPostText] = useState('');
     const [channelId, setChannelId] = useState('');
     const [scheduleTime, setScheduleTime] = useState('');
-  
+    const [buttons, setButtons] = useState([]); // Tugmalar uchun yangi holat (state)
+
     const mainButton = webApp.MainButton;
 
     useEffect(() => {
@@ -21,7 +22,9 @@ const PostCreator = () => {
     }, [isLoading, channels, channelId]);
 
     useEffect(() => {
-        const isReady = channelId && scheduleTime && (postText.trim() !== '' || pendingMedia);
+        // Postda matn, media yoki tugmalar bo'lsa, uni yuborishga tayyor deb hisoblaymiz
+        const isContentPresent = postText.trim() !== '' || pendingMedia || buttons.length > 0;
+        const isReady = channelId && scheduleTime && isContentPresent;
 
         if (isReady) {
             mainButton.setParams({
@@ -33,7 +36,7 @@ const PostCreator = () => {
         } else {
             mainButton.hide();
         }
-    }, [postText, channelId, scheduleTime, pendingMedia, mainButton]);
+    }, [postText, channelId, scheduleTime, pendingMedia, buttons, mainButton]);
 
     useEffect(() => {
         const handleSendData = () => {
@@ -43,8 +46,14 @@ const PostCreator = () => {
                 schedule_time: scheduleTime,
                 file_id: pendingMedia ? pendingMedia.file_id : null,
                 file_type: pendingMedia ? pendingMedia.file_type : null,
+                inline_buttons: buttons, // Tugmalar ma'lumotini botga yuboramiz
             };
-            schedulePost(dataToSend); // Amalni do'kondan chaqiramiz
+            schedulePost(dataToSend);
+            
+            // Ma'lumot yuborilgandan so'ng formani tozalaymiz
+            setPostText('');
+            setScheduleTime('');
+            setButtons([]);
         };
 
         mainButton.onClick(handleSendData);
@@ -52,7 +61,7 @@ const PostCreator = () => {
         return () => {
             mainButton.offClick(handleSendData);
         };
-    }, [postText, channelId, scheduleTime, pendingMedia, schedulePost, mainButton]);
+    }, [postText, channelId, scheduleTime, pendingMedia, buttons, schedulePost, mainButton]);
 
     return (
         <div className="post-creator">
@@ -95,6 +104,9 @@ const PostCreator = () => {
                     onChange={(e) => setScheduleTime(e.target.value)}
                 />
             </div>
+
+            {/* Yangi ButtonConstructor komponentini chaqiramiz */}
+            <ButtonConstructor buttons={buttons} onButtonsChange={setButtons} />
         </div>
     );
 };
