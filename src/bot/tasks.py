@@ -1,6 +1,8 @@
 import logging
 import asyncio
+import asyncpg
 from aiogram import Bot
+from aiogram.exceptions import TelegramAPIError
 
 from src.bot.config import settings
 from src.bot.database.db import create_pool
@@ -14,7 +16,7 @@ async def send_scheduled_message(post_id: int):
     """
     A self-sufficient task that creates its own bot and db connections to send a message.
     """
-    logger.info(f"Executing self-sufficient job for post_id: {post_id}")
+    logger.info(f"Executing job for post_id: {post_id}")
 
     temp_bot: Bot | None = None
     temp_pool = await create_pool()
@@ -29,17 +31,14 @@ async def send_scheduled_message(post_id: int):
             )
             return
 
+        # Sending logic remains the same
         if post.get('file_id') and post.get('file_type') == 'photo':
             sent_message = await temp_bot.send_photo(
-                chat_id=post["channel_id"],
-                photo=post["file_id"],
-                caption=post.get("text")
+                chat_id=post["channel_id"], photo=post["file_id"], caption=post.get("text")
             )
         elif post.get('file_id') and post.get('file_type') == 'video':
             sent_message = await temp_bot.send_video(
-                chat_id=post["channel_id"],
-                video=post["file_id"],
-                caption=post.get("text")
+                chat_id=post["channel_id"], video=post["file_id"], caption=post.get("text")
             )
         else:
             sent_message = await temp_bot.send_message(
@@ -52,14 +51,16 @@ async def send_scheduled_message(post_id: int):
             f"Successfully sent post {post_id} (message_id: {sent_message.message_id})"
         )
 
+    # --- YAXSHILANGAN XATOLIKLARNI QAYTA ISHLASH ---
+    except (asyncpg.PostgresError, TelegramAPIError) as e:
+        await repo.update_post_status(post_id, "failed")
+        logger.error(f"A specific DB or Telegram error occurred for post {post_id}: {e}", exc_info=True)
     except Exception as e:
         await repo.update_post_status(post_id, "failed")
-        logger.error(f"Failed to send post {post_id}: {e}", exc_info=True)
+        logger.error(f"An unexpected error occurred for post {post_id}: {e}", exc_info=True)
     finally:
         if temp_pool:
             await temp_pool.close()
-        # --- MUHIM TUZATISH ---
-        # Bot sessiyasini yopish kodini olib tashladik.
         if temp_bot:
             await temp_bot.session.close()
 
@@ -86,15 +87,16 @@ async def update_all_post_views():
             if current_views is not None:
                 await analytics_repo.update_post_views(post_id, current_views)
                 updated_count += 1
-            await asyncio.sleep(1)
+            await asyncio.sleep(1) # Avoid hitting Telegram rate limits
         logger.info(f"Successfully updated view counts for {updated_count} posts.")
 
+    # --- YAXSHILANGAN XATOLIKLARNI QAYTA ISHLASH ---
+    except (asyncpg.PostgresError, TelegramAPIError) as e:
+        logger.error(f"A specific DB or Telegram error occurred during update_all_post_views: {e}", exc_info=True)
     except Exception as e:
-        logger.error(f"Error during update_all_post_views task: {e}", exc_info=True)
+        logger.error(f"An unexpected error occurred during update_all_post_views: {e}", exc_info=True)
     finally:
         if temp_pool:
             await temp_pool.close()
-        # --- MUHIM TUZATISH ---
-        # Bu yerda ham bot sessiyasini yopish kodini olib tashladik.
         if temp_bot:
             await temp_bot.session.close()
