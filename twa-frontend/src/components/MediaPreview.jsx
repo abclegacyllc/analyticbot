@@ -1,26 +1,24 @@
 import React from 'react';
-import './MediaPreview.css';
+import { Box, Typography, Chip } from '@mui/material';
+import PhotoIcon from '@mui/icons-material/Photo';
+import VideocamIcon from '@mui/icons-material/Videocam';
 
 const MediaPreview = ({ media }) => {
-  // If there's no media, this component renders nothing
-  if (!media || !media.file_id) {
-    return null;
-  }
+    if (!media) {
+        return null;
+    }
 
-  return (
-    <div className="media-preview-container">
-      <h4>Media to Schedule</h4>
-      <div className="media-item">
-        <p>
-            <strong>File Type:</strong> {media.file_type} <br />
-            <strong>File ID:</strong> <span>{media.file_id.slice(0, 30)}...</span>
-        </p>
-        <div className="media-notice">
-            A full preview is not available here, but the bot has saved your {media.file_type} and will post it correctly.
-        </div>
-      </div>
-    </div>
-  );
+    return (
+        <Box sx={{ mb: 2, p: 2, border: '1px solid #30363d', borderRadius: '6px', display: 'flex', alignItems: 'center', gap: 2 }}>
+            {media.file_type === 'photo' ? <PhotoIcon /> : <VideocamIcon />}
+            <Box>
+                <Typography variant="subtitle1">Media Attached</Typography>
+                <Typography variant="body2" color="text.secondary">
+                    A {media.file_type} is ready to be scheduled. It will be sent with your post.
+                </Typography>
+            </Box>
+        </Box>
+    );
 };
 
 export default MediaPreview;
