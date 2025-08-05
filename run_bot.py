@@ -87,32 +87,24 @@ async def main():
     )
 
     # 9. Register routers
-    # --- YANGI QO'SHILGAN LOGLAR ---
-    try:
-        logger.info("Including admin handlers...")
-        dp.include_router(admin_handlers.router)
-        logger.info("Admin handlers included successfully.")
-
-        logger.info("Including user handlers...")
-        dp.include_router(user_handlers.router)
-        logger.info("User handlers included successfully.")
-    except Exception as e:
-        logger.error(f"Failed to include routers: {e}", exc_info=True)
-        return
+    dp.include_router(admin_handlers.router)
+    dp.include_router(user_handlers.router)
 
     # 10. Start everything
     try:
-        logger.info("Starting scheduler...")
         scheduler.start()
-        logger.info("Starting bot polling...")
         await dp.start_polling(bot)
     finally:
         logger.info("Shutting down...")
         if scheduler.running:
             scheduler.shutdown()
+        
+        # --- MUHIM TUZATISH SHU YERDA ---
+        # Bot sessiyasini yopishning to'g'ri usuli (aiogram 3.x uchun)
+        await bot.session.close()
+        
         await db_pool.close()
         await redis_conn.aclose()
-        await (await bot.get_session()).close()
 
 
 if __name__ == "__main__":
