@@ -32,6 +32,7 @@ async def handle_web_app_data(
     scheduler_repo: SchedulerRepository,
     scheduler_service: SchedulerService,
     state: FSMContext,
+    i18n: I18nContext, # i18n ni qo'shdik
 ):
     try:
         data = json.loads(message.web_app_data.data)
@@ -66,37 +67,61 @@ async def handle_web_app_data(
                     "file_type": user_state.get("media_file_type"),
                 },
             }
-
-            # --- JAVOB YUBORISH MANTIG'INI TO'LIQ O'ZGARTIRDIK ---
-            logger.info("Sending 'initial_data_response' to TWA.")
-            # Biz endi oddiy va ishonchli JSON formatida javob yuboramiz
             await message.answer(json.dumps({
                 "type": "initial_data_response",
                 "data": response_data
             }))
-            return # Javob yuborilgach, funksiyadan chiqamiz
+            return
 
-        # --- HANDLE ACTIONS ---
+        # --- HANDLE ACTIONS (with feedback) ---
         elif request_type == "new_post":
-            # ... (bu qism o'zgarmaydi)
-            await scheduler_service.schedule_post(
-                channel_id=int(data.get("channel_id")),
-                text=data.get("text"),
-                schedule_time=datetime.fromisoformat(data.get("schedule_time")),
-                file_id=data.get("file_id"),
-                file_type=data.get("file_type"),
-            )
-            await state.update_data(media_file_id=None, media_file_type=None)
+            try:
+                await scheduler_service.schedule_post(
+                    channel_id=int(data.get("channel_id")),
+                    text=data.get("text"),
+                    schedule_time=datetime.fromisoformat(data.get("schedule_time")),
+                    file_id=data.get("file_id"),
+                    file_type=data.get("file_type"),
+                )
+                await state.update_data(media_file_id=None, media_file_type=None)
+                # Frontend'ga muvaffaqiyatli javob yuborish
+                await message.answer(json.dumps({
+                    "type": "action_success",
+                    "action": "new_post",
+                    "message": "Post muvaffaqiyatli rejalashtirildi!"
+                }))
+            except Exception as e:
+                logger.error(f"Failed to schedule post via TWA: {e}", exc_info=True)
+                # Frontend'ga xatolik haqida javob yuborish
+                await message.answer(json.dumps({
+                    "type": "action_error",
+                    "message": f"Postni rejalashtirishda xatolik yuz berdi: {e}"
+                }))
 
         elif request_type == "delete_post":
-            # ... (bu qism o'zgarmaydi)
-            await scheduler_service.delete_post(int(data.get("post_id")))
+            try:
+                post_id = int(data.get("post_id"))
+                await scheduler_service.delete_post(post_id)
+                # Frontend'ga muvaffaqiyatli javob yuborish
+                await message.answer(json.dumps({
+                    "type": "action_success",
+                    "action": "delete_post",
+                    "message": f"Post #{post_id} muvaffaqiyatli o'chirildi!"
+                }))
+            except Exception as e:
+                logger.error(f"Failed to delete post via TWA: {e}", exc_info=True)
+                # Frontend'ga xatolik haqida javob yuborish
+                await message.answer(json.dumps({
+                    "type": "action_error",
+                    "message": f"Postni o'chirishda xatolik yuz berdi: {e}"
+                }))
 
+    except json.JSONDecodeError:
+        logger.warning(f"Received invalid JSON from TWA: {message.web_app_data.data}")
     except Exception as e:
         logger.error(f"Critical error in handle_web_app_data: {e}", exc_info=True)
 
 
-# ... (qolgan barcha funksiyalar o'zgarishsiz qoladi) ...
 @router.message(CommandStart())
 async def cmd_start(message: Message, i18n: I18nContext, user_repo: UserRepository):
     await user_repo.create_user(
