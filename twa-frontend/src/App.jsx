@@ -2,7 +2,7 @@ import React from 'react';
 import PostCreator from './components/PostCreator';
 import ScheduledPostsList from './components/ScheduledPostsList';
 import MediaPreview from './components/MediaPreview';
-import { useAppStore } from './store/appStore'; // Yangi do'konimizni import qilamiz
+import { useAppStore } from '/src/store/appStore.js';
 import './App.css';
 
 function App() {
