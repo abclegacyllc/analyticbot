@@ -3,7 +3,7 @@ import { Container, Box, Typography, CircularProgress } from '@mui/material';
 import PostCreator from './components/PostCreator';
 import ScheduledPostsList from './components/ScheduledPostsList';
 import MediaPreview from './components/MediaPreview';
-import AddChannel from './components/AddChannel'; // Yangi komponent
+import AddChannel from './components/AddChannel';
 import { useAppStore } from './store/appStore.js';
 
 function App() {
@@ -23,7 +23,11 @@ function App() {
                 </Box>
             )}
 
-            <Box sx={{ opacity: isLoading ? 0.5 : 1, pointerEvents: isLoading ? 'none' : 'auto' }}>
+            <Box sx={{ 
+                transition: 'opacity 0.3s ease-in-out',
+                opacity: isLoading ? 0.5 : 1, 
+                pointerEvents: isLoading ? 'none' : 'auto' 
+            }}>
                 <AddChannel />
                 <MediaPreview media={pendingMedia} />
                 <PostCreator />
