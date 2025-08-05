@@ -1,8 +1,10 @@
 import logging
 import asyncio
+import json
 import asyncpg
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from src.bot.config import settings
 from src.bot.database.db import create_pool
@@ -31,18 +33,36 @@ async def send_scheduled_message(post_id: int):
             )
             return
 
-        # Sending logic remains the same
+        # --- TUGMALARNI YASASH MANTIG'I ---
+        reply_markup = None
+        if post.get('inline_buttons'):
+            try:
+                # Ma'lumotlar bazasidan kelgan JSON satrini Python obyektiga aylantiramiz
+                buttons_data = json.loads(post['inline_buttons'])
+                if buttons_data:
+                    keyboard = [
+                        [InlineKeyboardButton(text=btn['text'], url=btn['url'])]
+                        for btn in buttons_data
+                    ]
+                    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
+            except (json.JSONDecodeError, TypeError) as e:
+                logger.error(f"Could not parse inline_buttons for post {post_id}: {e}")
+
+        # Xabarni yuborish logikasi
         if post.get('file_id') and post.get('file_type') == 'photo':
             sent_message = await temp_bot.send_photo(
-                chat_id=post["channel_id"], photo=post["file_id"], caption=post.get("text")
+                chat_id=post["channel_id"], photo=post["file_id"], 
+                caption=post.get("text"), reply_markup=reply_markup
             )
         elif post.get('file_id') and post.get('file_type') == 'video':
             sent_message = await temp_bot.send_video(
-                chat_id=post["channel_id"], video=post["file_id"], caption=post.get("text")
+                chat_id=post["channel_id"], video=post["file_id"], 
+                caption=post.get("text"), reply_markup=reply_markup
             )
         else:
             sent_message = await temp_bot.send_message(
-                chat_id=post["channel_id"], text=post["text"]
+                chat_id=post["channel_id"], text=post["text"], 
+                reply_markup=reply_markup, disable_web_page_preview=True
             )
 
         await repo.update_post_status(post_id, "sent")
@@ -51,7 +71,6 @@ async def send_scheduled_message(post_id: int):
             f"Successfully sent post {post_id} (message_id: {sent_message.message_id})"
         )
 
-    # --- YAXSHILANGAN XATOLIKLARNI QAYTA ISHLASH ---
     except (asyncpg.PostgresError, TelegramAPIError) as e:
         await repo.update_post_status(post_id, "failed")
         logger.error(f"A specific DB or Telegram error occurred for post {post_id}: {e}", exc_info=True)
@@ -66,19 +85,14 @@ async def send_scheduled_message(post_id: int):
 
 
 async def update_all_post_views():
-    """
-    A self-sufficient background job that periodically fetches view counts.
-    """
+    # ... (bu funksiya o'zgarishsiz qoladi) ...
     logger.info("Starting background task: update_all_post_views")
-    
     temp_bot: Bot | None = None
     temp_pool = await create_pool()
-
     try:
         temp_bot = Bot(token=settings.BOT_TOKEN.get_secret_value())
         analytics_repo = AnalyticsRepository(temp_pool)
         analytics_service = AnalyticsService(temp_bot, analytics_repo, SchedulerRepository(temp_pool))
-
         posts_to_update = await analytics_repo.get_posts_to_update_views()
         updated_count = 0
         for post in posts_to_update:
@@ -87,10 +101,8 @@ async def update_all_post_views():
             if current_views is not None:
                 await analytics_repo.update_post_views(post_id, current_views)
                 updated_count += 1
-            await asyncio.sleep(1) # Avoid hitting Telegram rate limits
+            await asyncio.sleep(1)
         logger.info(f"Successfully updated view counts for {updated_count} posts.")
-
-    # --- YAXSHILANGAN XATOLIKLARNI QAYTA ISHLASH ---
     except (asyncpg.PostgresError, TelegramAPIError) as e:
         logger.error(f"A specific DB or Telegram error occurred during update_all_post_views: {e}", exc_info=True)
     except Exception as e:
