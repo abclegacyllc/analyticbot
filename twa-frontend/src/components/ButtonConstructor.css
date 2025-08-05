@@ -1,0 +1,85 @@
+.button-constructor {
+    margin-top: 20px;
+    padding: 15px;
+    border: 1px solid #333;
+    border-radius: 8px;
+    background-color: #2c3e50;
+}
+
+.button-constructor h3 {
+    margin-top: 0;
+    color: #ecf0f1;
+    border-bottom: 1px solid #34495e;
+    padding-bottom: 10px;
+}
+
+.button-list {
+    list-style: none;
+    padding: 0;
+    margin-top: 10px;
+}
+
+.button-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: #34495e;
+    padding: 8px 12px;
+    border-radius: 5px;
+    margin-bottom: 8px;
+    word-break: break-all;
+}
+
+.button-item-text {
+    color: #ecf0f1;
+    font-size: 14px;
+}
+
+.button-item-url {
+    color: #95a5a6;
+    font-size: 12px;
+    margin-left: 10px;
+}
+
+.button-item-actions button {
+    background: none;
+    border: none;
+    color: #ecf0f1;
+    cursor: pointer;
+    font-size: 16px;
+    margin-left: 8px;
+    padding: 2px;
+}
+
+.button-item-actions button:hover {
+    color: #e74c3c; /* for delete */
+}
+
+.add-button-form {
+    margin-top: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.add-button-form input {
+    padding: 8px;
+    border: 1px solid #34495e;
+    background-color: #2c3e50;
+    color: #ecf0f1;
+    border-radius: 4px;
+}
+
+.add-button-form button {
+    padding: 10px;
+    background-color: #2980b9;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.add-button-form button:hover {
+    background-color: #3498db;
+}
