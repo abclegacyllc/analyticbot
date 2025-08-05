@@ -1,23 +1,21 @@
 import React from 'react';
-import { useAppContext } from '../context/AppContext'; // Context hook'ini import qilamiz
+import { useAppStore } from '../store/appStore';
 import './ScheduledPostsList.css';
 
 const ScheduledPostsList = () => {
-    // Ma'lumotlarni props o'rniga context'dan olamiz
-    const { posts, isLoading, deletePost } = useAppContext();
+    // Ma'lumotlarni va amallarni to'g'ridan-to'g'ri do'kondan olamiz
+    const { scheduledPosts, deletePost } = useAppStore();
 
-    if (isLoading) {
-        return <div className="posts-list"><h2>Scheduled Posts</h2><p>Loading posts...</p></div>;
-    }
+    // isLoading holati endi App.jsx'da global boshqariladi, bu yerda kerak emas
 
     return (
         <div className="posts-list">
             <h2>Scheduled Posts</h2>
-            {posts.length === 0 ? (
+            {scheduledPosts.length === 0 ? (
                 <p>You have no scheduled posts.</p>
             ) : (
                 <ul>
-                    {posts.map((post) => (
+                    {scheduledPosts.map((post) => (
                         <li key={post.id} className="post-item">
                             <div className="post-info">
                                 <span className="channel-name">To: {post.channel_name}</span>
@@ -31,7 +29,7 @@ const ScheduledPostsList = () => {
                             </div>
                             <button 
                                 className="delete-btn" 
-                                onClick={() => deletePost(post.id)}
+                                onClick={() => deletePost(post.id)} // Amalni do'kondan chaqiramiz
                             >
                                 Delete
                             </button>
