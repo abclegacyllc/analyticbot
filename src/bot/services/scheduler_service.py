@@ -1,54 +1,58 @@
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.base import JobLookupError
-from src.bot.database.repositories import SchedulerRepository
+import json
 from datetime import datetime
-import logging
-from typing import Optional
-
+from typing import List, Dict, Any, Optional
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from src.bot.database.repositories import SchedulerRepository
 from src.bot.tasks import send_scheduled_message
 
-logger = logging.getLogger(__name__)
-
 class SchedulerService:
-    def __init__(self, scheduler: AsyncIOScheduler, repository: SchedulerRepository):
+    def __init__(self, scheduler: AsyncIOScheduler, repo: SchedulerRepository):
         self.scheduler = scheduler
-        self.repository = repository
+        self.repo = repo
 
     async def schedule_post(
         self,
         channel_id: int,
+        text: Optional[str],
         schedule_time: datetime,
-        text: Optional[str] = None,
         file_id: Optional[str] = None,
-        file_type: Optional[str] = None
-    ) -> str:
-        """Saves a post to the DB and schedules a self-sufficient task."""
-        if not text and not file_id:
-            raise ValueError("Post must have either text or a file.")
+        file_type: Optional[str] = None,
+        # --- YANGI PARAMETR ---
+        inline_buttons: Optional[List[Dict[str, str]]] = None
+    ):
+        """
+        Schedules a post to be sent at a specific time.
+        """
+        # Tugmalarni saqlashdan oldin JSON satriga aylantiramiz
+        buttons_json = json.dumps(inline_buttons) if inline_buttons else None
 
-        post_id = await self.repository.create_scheduled_post(
-            channel_id, schedule_time, text, file_id, file_type
+        post_id = await self.repo.create_scheduled_post(
+            channel_id=channel_id,
+            text=text,
+            schedule_time=schedule_time,
+            file_id=file_id,
+            file_type=file_type,
+            # --- YANGI MAYDON ---
+            inline_buttons=buttons_json
         )
-        job_id = str(post_id)
-
-        # The task is now self-sufficient, we only need to pass the post_id
+        
+        # Add the job to APScheduler
         self.scheduler.add_job(
             send_scheduled_message,
-            trigger='date',
+            "date",
             run_date=schedule_time,
-            id=job_id,
-            misfire_grace_time=300,
-            args=[post_id]  # Only pass simple, pickle-safe arguments
+            args=[post_id],
+            id=f"post_{post_id}",
+            replace_existing=True
         )
-        logger.info(f"Scheduled job {job_id} for post {post_id} at {schedule_time}")
-        return job_id
 
-    async def delete_post(self, post_id: int) -> bool:
-        """Removes a scheduled job and deletes the post from the database."""
-        job_id = str(post_id)
-        try:
-            self.scheduler.remove_job(job_id)
-        except JobLookupError:
-            logger.warning(f"Job {job_id} not found in scheduler.")
+    async def delete_post(self, post_id: int):
+        """
+        Deletes a scheduled post and removes it from the scheduler.
+        """
+        await self.repo.delete_scheduled_post(post_id)
         
-        return await self.repository.delete_scheduled_post(post_id)
+        # Remove the job from APScheduler
+        job_id = f"post_{post_id}"
+        if self.scheduler.get_job(job_id):
+            self.scheduler.remove_job(job_id)
