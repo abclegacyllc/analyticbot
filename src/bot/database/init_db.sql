@@ -29,8 +29,12 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
     text TEXT,
     file_id VARCHAR(255),
     file_type VARCHAR(50),
+    
+    -- === YANGI QO'SHILGAN USTUN ===
+    inline_buttons JSONB, -- Tugmalar ma'lumotini JSONB formatida saqlaydi
+
     schedule_time TIMESTAMP WITH TIME ZONE NOT NULL,
-    status VARCHAR(50) DEFAULT 'pending',
+    status VARCHAR(50) DEFAULT 'pending', -- pending, sent, failed
     sent_message_id BIGINT,
     views INT DEFAULT 0,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
@@ -40,6 +44,7 @@ CREATE TABLE IF NOT EXISTS scheduled_posts (
 INSERT INTO plans (plan_id, plan_name, max_channels, max_posts_per_month)
 VALUES (1, 'free', 3, 30)
 ON CONFLICT (plan_id) DO NOTHING;
+
 
 -- Indexes for performance optimization
 CREATE INDEX IF NOT EXISTS idx_scheduled_posts_status_time ON scheduled_posts(status, schedule_time);
