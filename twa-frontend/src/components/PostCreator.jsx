@@ -27,7 +27,7 @@ const PostCreator = () => {
         if (isReady) {
             mainButton.setParams({
                 text: 'Schedule Post',
-                color: '#2481CC',
+                color: '#58a6ff', // MUI primary color
                 is_visible: true,
                 is_active: true,
             });
@@ -58,7 +58,7 @@ const PostCreator = () => {
     }, [postText, channelId, scheduleTime, pendingMedia, buttons, schedulePost, mainButton]);
 
     return (
-        <Box sx={{ mb: 3, p: 2, border: '1px solid #30363d', borderRadius: '6px' }}>
+        <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: '6px' }}>
             <Typography variant="h6" gutterBottom>Create New Post</Typography>
             <Box component="form" noValidate autoComplete="off" sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <FormControl fullWidth size="small">
