@@ -1,34 +1,35 @@
 import React from 'react';
+import { Container, Box, Typography, CircularProgress } from '@mui/material';
 import PostCreator from './components/PostCreator';
 import ScheduledPostsList from './components/ScheduledPostsList';
 import MediaPreview from './components/MediaPreview';
-import { useAppStore } from '/src/store/appStore.js';
-import './App.css';
+import AddChannel from './components/AddChannel'; // Yangi komponent
+import { useAppStore } from './store/appStore.js';
 
 function App() {
-    // Barcha kerakli ma'lumotlarni to'g'ridan-to'g'ri do'kondan olamiz
-    const { pendingMedia, isLoading, error } = useAppStore();
+    const { pendingMedia, isLoading } = useAppStore();
 
     return (
-        <div className="app-container">
-            <h1>Bot Dashboard</h1>
+        <Container maxWidth="sm">
+            <Box sx={{ my: 2, textAlign: 'center' }}>
+                <Typography variant="h4" component="h1" gutterBottom>
+                    Bot Dashboard
+                </Typography>
+            </Box>
 
-            {error && <div className="error-message">{error}</div>}
-            
-            <MediaPreview media={pendingMedia} />
-            
-            <PostCreator />
-            
-            <ScheduledPostsList />
-
-            {/* Global yuklanish indikatori */}
             {isLoading && (
-                <div className="loading-overlay">
-                    <div className="loading-spinner"></div>
-                    <p>Loading...</p>
-                </div>
+                <Box sx={{ display: 'flex', justifyContent: 'center', my: 4 }}>
+                    <CircularProgress />
+                </Box>
             )}
-        </div>
+
+            <Box sx={{ opacity: isLoading ? 0.5 : 1, pointerEvents: isLoading ? 'none' : 'auto' }}>
+                <AddChannel />
+                <MediaPreview media={pendingMedia} />
+                <PostCreator />
+                <ScheduledPostsList />
+            </Box>
+        </Container>
     );
 }
 
