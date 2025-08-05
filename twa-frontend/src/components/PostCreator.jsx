@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { useAppContext } from '../context/AppContext'; // Context hook'ini import qilamiz
+import { useAppStore } from '../store/appStore';
 import './PostCreator.css';
 
 const webApp = window.Telegram.WebApp;
 
 const PostCreator = () => {
-    // Barcha kerakli ma'lumotlarni props o'rniga context'dan olamiz
-    const { channels, isLoading, pendingMedia, schedulePost } = useAppContext();
+    // Ma'lumotlarni va amallarni to'g'ridan-to'g'ri do'kondan olamiz
+    const { channels, isLoading, pendingMedia, schedulePost } = useAppStore();
 
     const [postText, setPostText] = useState('');
     const [channelId, setChannelId] = useState('');
@@ -44,8 +44,7 @@ const PostCreator = () => {
                 file_id: pendingMedia ? pendingMedia.file_id : null,
                 file_type: pendingMedia ? pendingMedia.file_type : null,
             };
-            // Endi schedulePost funksiyasini context'dan chaqiramiz
-            schedulePost(dataToSend);
+            schedulePost(dataToSend); // Amalni do'kondan chaqiramiz
         };
 
         mainButton.onClick(handleSendData);
