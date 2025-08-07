@@ -17,3 +17,5 @@ fakeredis
 sentry-sdk
 fastapi
 uvicorn[standard]
+alembic
+SQLAlchemy
