@@ -1,93 +1,42 @@
-import asyncpg
+import json
 from datetime import datetime
-from typing import Optional, Dict, Any, List
+from typing import List, Dict, Any, Optional
 
-class SchedulerRepository:
-    def __init__(self, pool: asyncpg.Pool):
-        self.pool = pool
+from src.bot.database.repositories import SchedulerRepository
+from src.bot.tasks import send_scheduled_message
 
-    # --- UPDATED METHOD ---
-    async def create_scheduled_post(
+class SchedulerService:
+    # Endi bu servisga APScheduler keraksiz
+    def __init__(self, repo: SchedulerRepository):
+        self.repo = repo
+
+    async def schedule_post(
         self,
         channel_id: int,
+        text: Optional[str],
         schedule_time: datetime,
-        text: Optional[str] = None,
         file_id: Optional[str] = None,
         file_type: Optional[str] = None,
-        inline_buttons: Optional[str] = None # JSONB uchun string
-    ) -> int:
-        """
-        Creates a new post in the database, now with optional media and buttons fields.
-        """
-        async with self.pool.acquire() as conn:
-            return await conn.fetchval(
-                """
-                INSERT INTO scheduled_posts (channel_id, text, file_id, file_type, schedule_time, inline_buttons)
-                VALUES ($1, $2, $3, $4, $5, $6)
-                RETURNING post_id
-                """,
-                channel_id, text, file_id, file_type, schedule_time, inline_buttons
-            )
-    
-    # --- YANGI METOD ---
-    async def count_user_posts_this_month(self, user_id: int) -> int:
-        """Counts how many posts a user has created in the current calendar month."""
-        async with self.pool.acquire() as conn:
-            return await conn.fetchval(
-                """
-                SELECT COUNT(*)
-                FROM scheduled_posts sp
-                JOIN channels c ON sp.channel_id = c.channel_id
-                WHERE c.admin_id = $1
-                  AND sp.created_at >= date_trunc('month', CURRENT_DATE);
-                """,
-                user_id
-            )
+        inline_buttons: Optional[List[Dict[str, str]]] = None
+    ):
+        buttons_json = json.dumps(inline_buttons) if inline_buttons else None
 
-    # ... qolgan metodlar o'zgarishsiz qoladi ...
-    async def get_scheduled_post(self, post_id: int) -> Optional[Dict[str, Any]]:
-        """
-        Retrieves a single scheduled post, including media info.
-        """
-        async with self.pool.acquire() as conn:
-            return await conn.fetchrow("SELECT * FROM scheduled_posts WHERE post_id = $1", post_id)
+        post_id = await self.repo.create_scheduled_post(
+            channel_id=channel_id,
+            text=text,
+            schedule_time=schedule_time,
+            file_id=file_id,
+            file_type=file_type,
+            inline_buttons=buttons_json
+        )
+        
+        # --- MUHIM O'ZGARISH: Vazifani Celery'ga yuborish ---
+        # `apply_async` metodi vazifani belgilangan vaqtda ishga tushirishni ta'minlaydi
+        send_scheduled_message.apply_async(args=[post_id], eta=schedule_time)
 
-    async def update_post_status(self, post_id: int, status: str):
-        """Updates the status of a post (e.g., 'pending', 'sent', 'failed')."""
-        async with self.pool.acquire() as conn:
-            await conn.execute(
-                "UPDATE scheduled_posts SET status = $1 WHERE post_id = $2",
-                status, post_id
-            )
-            
-    async def set_sent_message_id(self, post_id: int, message_id: int):
-        """Stores the message_id of the post after it has been sent."""
-        async with self.pool.acquire() as conn:
-            await conn.execute("UPDATE scheduled_posts SET sent_message_id = $1 WHERE post_id = $2", message_id, post_id)
-
-    async def get_pending_posts_by_user(self, user_id: int) -> List[Dict[str, Any]]:
-        """Retrieves all posts with 'pending' status for a specific user."""
-        async with self.pool.acquire() as conn:
-            return await conn.fetch(
-                """
-                SELECT
-                    sp.post_id,
-                    sp.text,
-                    sp.file_id,
-                    sp.file_type,
-                    sp.schedule_time,
-                    sp.inline_buttons,
-                    c.channel_name
-                FROM scheduled_posts sp
-                JOIN channels c ON sp.channel_id = c.channel_id
-                WHERE c.admin_id = $1 AND sp.status = 'pending'
-                ORDER BY sp.schedule_time ASC;
-                """,
-                user_id
-            )
-
-    async def delete_scheduled_post(self, post_id: int) -> bool:
-        """Deletes a post from the database and returns True if successful."""
-        async with self.pool.acquire() as conn:
-            result = await conn.execute("DELETE FROM scheduled_posts WHERE post_id = $1", post_id)
-            return result != 'DELETE 0'
+    async def delete_post(self, post_id: int):
+        # Hozircha vazifani Celery'dan o'chirish murakkab.
+        # Shuning uchun oddiyroq yechim qilamiz: postning statusini o'zgartiramiz.
+        # send_scheduled_message funksiyasi statusni tekshirib, 'cancelled' bo'lsa,
+        # postni yubormaydi.
+        await self.repo.update_post_status(post_id, 'cancelled')
