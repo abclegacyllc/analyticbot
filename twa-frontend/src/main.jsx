@@ -4,14 +4,14 @@ import App from './App.jsx'
 import './index.css'
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import theme from './theme.js';
-import * as Sentry from "@sentry/react"; // 1. Sentry'ni import qilamiz
+import * as Sentry from "@sentry/react";
 
-// 2. Sentry'ni sizning DSN kalitingiz bilan ishga tushiramiz
+// Sentry'ni to'g'rilangan sozlamalar bilan ishga tushiramiz
 Sentry.init({
   dsn: "https://1c970d384ec6c7f7f6ec0d9930801d250a4509801364324352.ingest.us.sentry.io/4509801366290432",
   integrations: [
+    // Xato qator olib tashlandi
     Sentry.browserTracingIntegration(),
-    Sentry.reactIntegration(),
     Sentry.replayIntegration(),
   ],
   // Performance Monitoring
