@@ -1,0 +1,43 @@
+# Fayl nomi: .github/workflows/python-tests.yml
+
+name: Run Python Tests
+
+# Bu action qachon ishga tushishini belgilaydi
+on:
+  # "main" branch'iga push qilinganda
+  push:
+    branches: [ "main" ]
+  # Pull Request ochilganda yoki yangilanganda
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    # Action ishlaydigan virtual muhit (eng so'nggi Ubuntu)
+    runs-on: ubuntu-latest
+    
+    # Python versiyalarini ko'rsatamiz (biz 3.12 ishlatamiz)
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+    # 1-qadam: Kodni virtual muhitga yuklab olish
+    - uses: actions/checkout@v4
+
+    # 2-qadam: Ko'rsatilgan Python versiyasini o'rnatish
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    # 3-qadam: Kerakli kutubxonalarni o'rnatish
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    # 4-qadam: Pytest testlarini ishga tushirish
+    - name: Run tests with pytest
+      run: |
+        pytest
