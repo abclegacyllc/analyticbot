@@ -8,107 +8,95 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
 from src.bot.config import settings
 from src.bot.database.db import create_pool
+from src.bot.celery_app import celery_app # <-- Celery ilovasini import qilamiz
 from src.bot.database.repositories import SchedulerRepository, AnalyticsRepository
 from src.bot.services.analytics_service import AnalyticsService
 
 logger = logging.getLogger(__name__)
 
-
-async def send_scheduled_message(post_id: int):
+# --- Celery vazifasiga aylantirilgan funksiya ---
+@celery_app.task(bind=True)
+def send_scheduled_message(self, post_id: int):
     """
-    A self-sufficient task that creates its own bot and db connections to send a message.
+    Bu funksiya endi Celery workeri tomonidan chaqiriladi.
     """
-    logger.info(f"Executing job for post_id: {post_id}")
+    async def _send():
+        db_pool = None
+        bot = Bot(token=settings.BOT_TOKEN.get_secret_value())
+        try:
+            db_pool = await create_pool()
+            repo = SchedulerRepository(db_pool)
+            post = await repo.get_scheduled_post(post_id)
 
-    temp_bot: Bot | None = None
-    temp_pool = await create_pool()
-    repo = SchedulerRepository(temp_pool)
+            if not post or post['status'] != 'pending':
+                logger.warning(f"Post {post_id} not found or not pending. Skipping.")
+                return
 
-    try:
-        temp_bot = Bot(token=settings.BOT_TOKEN.get_secret_value())
-        post = await repo.get_scheduled_post(post_id)
-        if not post or post['status'] != 'pending':
-            logger.warning(
-                f"Post {post_id} not found or not in 'pending' state. Skipping."
-            )
-            return
+            # ... (qolgan qismi deyarli o'zgarishsiz) ...
+            buttons = json.loads(post['inline_buttons']) if post['inline_buttons'] else []
+            keyboard = InlineKeyboardMarkup(inline_keyboard=[
+                [InlineKeyboardButton(text=btn['text'], url=btn['url']) for btn in row]
+                for row in buttons
+            ]) if buttons else None
+            
+            sent_message = None
+            if post['file_id'] and post['file_type'] == 'photo':
+                sent_message = await bot.send_photo(
+                    chat_id=post['channel_id'], photo=post['file_id'],
+                    caption=post['text'], reply_markup=keyboard
+                )
+            elif post['file_id'] and post['file_type'] == 'video':
+                sent_message = await bot.send_video(
+                    chat_id=post['channel_id'], video=post['file_id'],
+                    caption=post['text'], reply_markup=keyboard
+                )
+            else:
+                sent_message = await bot.send_message(
+                    chat_id=post['channel_id'], text=post['text'], reply_markup=keyboard
+                )
 
-        # --- TUGMALARNI YASASH MANTIG'I ---
-        reply_markup = None
-        if post.get('inline_buttons'):
-            try:
-                # Ma'lumotlar bazasidan kelgan JSON satrini Python obyektiga aylantiramiz
-                buttons_data = json.loads(post['inline_buttons'])
-                if buttons_data:
-                    keyboard = [
-                        [InlineKeyboardButton(text=btn['text'], url=btn['url'])]
-                        for btn in buttons_data
-                    ]
-                    reply_markup = InlineKeyboardMarkup(inline_keyboard=keyboard)
-            except (json.JSONDecodeError, TypeError) as e:
-                logger.error(f"Could not parse inline_buttons for post {post_id}: {e}")
+            await repo.update_post_status(post_id, 'sent')
+            await repo.set_sent_message_id(post_id, sent_message.message_id)
+            logger.info(f"Successfully sent scheduled post {post_id}")
 
-        # Xabarni yuborish logikasi
-        if post.get('file_id') and post.get('file_type') == 'photo':
-            sent_message = await temp_bot.send_photo(
-                chat_id=post["channel_id"], photo=post["file_id"], 
-                caption=post.get("text"), reply_markup=reply_markup
-            )
-        elif post.get('file_id') and post.get('file_type') == 'video':
-            sent_message = await temp_bot.send_video(
-                chat_id=post["channel_id"], video=post["file_id"], 
-                caption=post.get("text"), reply_markup=reply_markup
-            )
-        else:
-            sent_message = await temp_bot.send_message(
-                chat_id=post["channel_id"], text=post["text"], 
-                reply_markup=reply_markup, disable_web_page_preview=True
-            )
+        except TelegramAPIError as e:
+            logger.error(f"Telegram API error while sending post {post_id}: {e}")
+            if db_pool:
+                await SchedulerRepository(db_pool).update_post_status(post_id, 'failed')
+        except Exception as e:
+            logger.error(f"Unexpected error while sending post {post_id}: {e}", exc_info=True)
+            if db_pool:
+                await SchedulerRepository(db_pool).update_post_status(post_id, 'failed')
+        finally:
+            if db_pool:
+                await db_pool.close()
+            await bot.session.close()
 
-        await repo.update_post_status(post_id, "sent")
-        await repo.set_sent_message_id(post_id, sent_message.message_id)
-        logger.info(
-            f"Successfully sent post {post_id} (message_id: {sent_message.message_id})"
-        )
+    # Celery sinxron ishlagani uchun, asinxron kodni shunday ishga tushiramiz
+    asyncio.run(_send())
 
-    except (asyncpg.PostgresError, TelegramAPIError) as e:
-        await repo.update_post_status(post_id, "failed")
-        logger.error(f"A specific DB or Telegram error occurred for post {post_id}: {e}", exc_info=True)
-    except Exception as e:
-        await repo.update_post_status(post_id, "failed")
-        logger.error(f"An unexpected error occurred for post {post_id}: {e}", exc_info=True)
-    finally:
-        if temp_pool:
-            await temp_pool.close()
-        if temp_bot:
-            await temp_bot.session.close()
+# --- Ikkinchi Celery vazifasi ---
+@celery_app.task
+def update_all_post_views():
+    """
+    Barcha postlarning ko'rishlar sonini yangilaydi.
+    Bu vazifa Celery Beat tomonidan har soatda avtomatik ishga tushiriladi.
+    """
+    async def _update():
+        db_pool = None
+        bot = Bot(token=settings.BOT_TOKEN.get_secret_value())
+        try:
+            db_pool = await create_pool()
+            analytics_repo = AnalyticsRepository(db_pool)
+            scheduler_repo = SchedulerRepository(db_pool)
+            analytics_service = AnalyticsService(bot, analytics_repo, scheduler_repo)
+            
+            await analytics_service.update_all_post_views()
+        except Exception as e:
+            logger.error(f"Error in periodic task update_all_post_views: {e}", exc_info=True)
+        finally:
+            if db_pool:
+                await db_pool.close()
+            await bot.session.close()
 
-
-async def update_all_post_views():
-    # ... (bu funksiya o'zgarishsiz qoladi) ...
-    logger.info("Starting background task: update_all_post_views")
-    temp_bot: Bot | None = None
-    temp_pool = await create_pool()
-    try:
-        temp_bot = Bot(token=settings.BOT_TOKEN.get_secret_value())
-        analytics_repo = AnalyticsRepository(temp_pool)
-        analytics_service = AnalyticsService(temp_bot, analytics_repo, SchedulerRepository(temp_pool))
-        posts_to_update = await analytics_repo.get_posts_to_update_views()
-        updated_count = 0
-        for post in posts_to_update:
-            post_id, admin_id = post['post_id'], post['admin_id']
-            current_views = await analytics_service.get_post_views(post_id, admin_id)
-            if current_views is not None:
-                await analytics_repo.update_post_views(post_id, current_views)
-                updated_count += 1
-            await asyncio.sleep(1)
-        logger.info(f"Successfully updated view counts for {updated_count} posts.")
-    except (asyncpg.PostgresError, TelegramAPIError) as e:
-        logger.error(f"A specific DB or Telegram error occurred during update_all_post_views: {e}", exc_info=True)
-    except Exception as e:
-        logger.error(f"An unexpected error occurred during update_all_post_views: {e}", exc_info=True)
-    finally:
-        if temp_pool:
-            await temp_pool.close()
-        if temp_bot:
-            await temp_bot.session.close()
+    asyncio.run(_update())
