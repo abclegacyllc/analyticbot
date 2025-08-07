@@ -50,7 +50,7 @@ origins = [
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins, 
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -78,25 +78,43 @@ class CreatePostRequest(BaseModel):
 async def add_channel_endpoint(request: AddChannelRequest):
     if not db_pool:
         raise HTTPException(status_code=503, detail="Database not initialized")
+
     channel_repo = ChannelRepository(db_pool)
+    
+    # --- YECHIM: try...except blokini to'g'rilaymiz ---
     try:
+        if not request.channel_name or not request.channel_name.startswith('@'):
+            raise HTTPException(status_code=400, detail="Invalid format. Channel username must start with @")
+
+        # Telegram API'ga 10 soniyalik timeout bilan so'rov
         chat = await bot.get_chat(chat_id=request.channel_name, request_timeout=10)
         bot_member = await bot.get_chat_member(chat_id=chat.id, user_id=bot.id, request_timeout=10)
+
         if bot_member.status != ChatMemberStatus.ADMINISTRATOR:
             raise HTTPException(status_code=403, detail=f"Bot is not an admin in {request.channel_name}.")
+
+        # Ma'lumotlar bazasiga yozish
         await channel_repo.create_channel(
-            channel_id=chat.id, channel_name=chat.title, admin_id=request.user_id
+            channel_id=chat.id,
+            channel_name=chat.title,
+            admin_id=request.user_id
         )
         return {"success": True, "message": f"Channel '{chat.title}' added successfully!"}
+    
+    except HTTPException:
+        # FastAPI tomonidan yaratilgan xatoliklarni qayta ushlamaymiz,
+        # ularni o'zgartirmasdan to'g'ridan-to'g'ri foydalanuvchiga yuboramiz
+        raise
     except asyncio.TimeoutError:
+        logger.error(f"API add_channel: Telegram API timed out for '{request.channel_name}'")
         raise HTTPException(status_code=504, detail="Could not connect to Telegram servers.")
     except TelegramBadRequest:
+        logger.warning(f"API add_channel: Channel '{request.channel_name}' not found.")
         raise HTTPException(status_code=404, detail=f"Channel '{request.channel_name}' not found.")
     except Exception as e:
         logger.error(f"API Error in add_channel_endpoint: {e}", exc_info=True)
         sentry_sdk.capture_exception(e)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
+        raise HTTPException(status_code=500, detail="An unexpected internal error occurred.")
 
 @app.get("/api/v1/initial-data/{user_id}")
 async def get_initial_data(user_id: int):
