@@ -11,7 +11,7 @@ psycopg2-binary
 matplotlib
 pydantic
 pydantic-settings
-# --- TEST UCHUN QO'SHIMCHALAR ---
 pytest
 pytest-asyncio
 fakeredis
+sentry-sdk
