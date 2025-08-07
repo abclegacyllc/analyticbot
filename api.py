@@ -1,8 +1,8 @@
-import json
 import logging
 import sentry_sdk
 import asyncio
-from fastapi import FastAPI, HTTPException, Path
+import json
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional, Dict
@@ -17,8 +17,6 @@ from src.bot.config import settings
 from src.bot.database.db import create_pool
 from src.bot.database.repositories import ChannelRepository, SchedulerRepository
 from src.bot.services.scheduler_service import SchedulerService
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 
 # --- Sentry Sozlamasi ---
 if settings.SENTRY_DSN:
@@ -28,44 +26,31 @@ if settings.SENTRY_DSN:
 app = FastAPI()
 bot = Bot(token=settings.BOT_TOKEN.get_secret_value())
 db_pool = None
-scheduler = None
-scheduler_service = None
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# --- Event Handlers (DB va Scheduler uchun) ---
+# --- Event Handlers (Faqat DB uchun) ---
 @app.on_event("startup")
 async def startup_event():
-    global db_pool, scheduler, scheduler_service
+    global db_pool
     db_pool = await create_pool()
-
-    db_url_str = settings.DATABASE_URL.unicode_string()
-    sqlalchemy_url = db_url_str.replace("postgresql://", "postgresql+psycopg2://")
-    jobstores = {'default': SQLAlchemyJobStore(url=sqlalchemy_url)}
-    scheduler = AsyncIOScheduler(jobstores=jobstores, timezone="UTC")
-    scheduler_service = SchedulerService(scheduler, SchedulerRepository(db_pool))
-    scheduler.start()
-    
-    logger.info("FastAPI: Database pool and Scheduler created.")
+    logger.info("FastAPI: Database pool created.")
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    if scheduler and scheduler.running:
-        scheduler.shutdown()
     if db_pool:
         await db_pool.close()
-    logger.info("FastAPI: Database pool and Scheduler closed.")
+    logger.info("FastAPI: Database pool closed.")
 
-# --- CORS Middleware (YANGI, TO'G'RI VERSIYASI) ---
-# Veb-ilovamiz ishlayotgan aniq manzilni ko'rsatamiz
+# --- CORS Middleware ---
 origins = [
     "https://fuzzy-adventure-5vgrx54q557f7vww-5173.app.github.dev",
 ]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins, # Endi "*" o'rniga aniq ro'yxatni ishlatamiz
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -86,18 +71,14 @@ class CreatePostRequest(BaseModel):
     schedule_time: datetime
     file_id: Optional[str] = None
     file_type: Optional[str] = None
-    inline_buttons: Optional[List[Button]] = []
+    inline_buttons: Optional[List[Dict[str, str]]] = []
 
 # --- API Endpoints ---
 @app.post("/api/v1/channels")
 async def add_channel_endpoint(request: AddChannelRequest):
-    # ... Bu funksiya avvalgidek qoladi ...
     if not db_pool:
         raise HTTPException(status_code=503, detail="Database not initialized")
     channel_repo = ChannelRepository(db_pool)
-    logger.info(f"API: Received request to add channel: {request.channel_name} for user: {request.user_id}")
-    if not request.channel_name or not request.channel_name.startswith('@'):
-        raise HTTPException(status_code=400, detail="Invalid format. Channel username must start with @")
     try:
         chat = await bot.get_chat(chat_id=request.channel_name, request_timeout=10)
         bot_member = await bot.get_chat_member(chat_id=chat.id, user_id=bot.id, request_timeout=10)
@@ -108,10 +89,8 @@ async def add_channel_endpoint(request: AddChannelRequest):
         )
         return {"success": True, "message": f"Channel '{chat.title}' added successfully!"}
     except asyncio.TimeoutError:
-        logger.error(f"API add_channel: Telegram API timed out for '{request.channel_name}'")
         raise HTTPException(status_code=504, detail="Could not connect to Telegram servers.")
     except TelegramBadRequest:
-        logger.warning(f"API add_channel: Channel '{request.channel_name}' not found.")
         raise HTTPException(status_code=404, detail=f"Channel '{request.channel_name}' not found.")
     except Exception as e:
         logger.error(f"API Error in add_channel_endpoint: {e}", exc_info=True)
@@ -119,10 +98,8 @@ async def add_channel_endpoint(request: AddChannelRequest):
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-# --- YANGI ENDPOINT'LAR ---
 @app.get("/api/v1/initial-data/{user_id}")
 async def get_initial_data(user_id: int):
-    """Foydalanuvchi uchun barcha kerakli ma'lumotlarni (kanallar, postlar) qaytaradi."""
     if not db_pool:
         raise HTTPException(status_code=503, detail="Database not initialized")
     
@@ -147,9 +124,11 @@ async def get_initial_data(user_id: int):
 
 @app.post("/api/v1/posts")
 async def create_post_endpoint(request: CreatePostRequest):
-    """Yangi postni rejalashtiradi."""
-    if not scheduler_service:
+    if not db_pool:
         raise HTTPException(status_code=503, detail="Scheduler not initialized")
+
+    scheduler_repo = SchedulerRepository(db_pool)
+    scheduler_service = SchedulerService(scheduler_repo)
     
     await scheduler_service.schedule_post(
         channel_id=request.channel_id,
@@ -157,15 +136,17 @@ async def create_post_endpoint(request: CreatePostRequest):
         schedule_time=request.schedule_time,
         file_id=request.file_id,
         file_type=request.file_type,
-        inline_buttons=[btn.dict() for btn in request.inline_buttons] if request.inline_buttons else None
+        inline_buttons=request.inline_buttons
     )
     return {"success": True, "message": "Post scheduled successfully!"}
 
 @app.delete("/api/v1/posts/{post_id}")
 async def delete_post_endpoint(post_id: int):
-    """Rejalashtirilgan postni o'chiradi."""
-    if not scheduler_service:
+    if not db_pool:
         raise HTTPException(status_code=503, detail="Scheduler not initialized")
+
+    scheduler_repo = SchedulerRepository(db_pool)
+    scheduler_service = SchedulerService(scheduler_repo)
         
     await scheduler_service.delete_post(post_id)
     return {"success": True, "message": "Post deleted successfully!"}
