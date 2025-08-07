@@ -1,4 +1,4 @@
-aiogram[fastapi]
+aiogram
 asyncpg
 redis
 apscheduler
