@@ -1,3 +1,7 @@
+console.log("Vite ko'rayotgan barcha o'zgaruvchilar:", import.meta.env);
+console.log("API Manzili:", import.meta.env.VITE_API_BASE_URL);
+// -------------------------
+
 import { create } from 'zustand';
 
 const webApp = window.Telegram.WebApp;
