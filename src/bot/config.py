@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import SecretStr, RedisDsn, PostgresDsn, AnyHttpUrl
+from pydantic import SecretStr, RedisDsn, PostgresDsn, AnyHttpUrl, Field
+from typing import Optional
 
 class Settings(BaseSettings):
     """
@@ -12,6 +13,10 @@ class Settings(BaseSettings):
     # Bot token is stored as a SecretStr to prevent accidental logging
     BOT_TOKEN: SecretStr
 
+    # --- YANGI QATOR ---
+    # Sentry DSN kaliti. Optional, chunki Sentry ishlatilmasligi ham mumkin.
+    SENTRY_DSN: Optional[str] = None
+
     # This acts as a master switch to enable/disable plan limit checks
     ENFORCE_PLAN_LIMITS: bool = False
 
@@ -19,7 +24,6 @@ class Settings(BaseSettings):
     DATABASE_URL: PostgresDsn
     REDIS_URL: RedisDsn
 
-    # --- NEW LINE ---
     # Telegram Web App URL, validated as a proper URL
     TWA_HOST_URL: AnyHttpUrl
 
