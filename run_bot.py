@@ -28,18 +28,24 @@ from src.bot.tasks import update_all_post_views
 
 
 async def main():
-    # --- Sentry'ni ishga tushirish (Backend uchun) ---
+    # --- Sentry'ni yangi DSN bilan ishga tushirish (Backend uchun) ---
     sentry_sdk.init(
-        # @ belgisi bilan to'g'rilangan DSN kaliti
-        dsn="https://d18b179e78010fcdb38a5890b2ba90d1@o4509801364324352.ingest.us.sentry.io/4509801430777856",
+        # Sizning yangi skrinshotingizdan olingan DSN kaliti
+        dsn="https://d8179e78010fcd30e52900a2bc99d1780@o4509801364324352.ingest.us.sentry.io/4509801430777856",
+        # Set traces_sample_rate to 1.0 to capture 100%
+        # of transactions for performance monitoring.
         traces_sample_rate=1.0,
+        # Set profile_session_sample_rate to 1.0 to profile 100%
+        # of sampled sessions.
+        # We recommend adjusting this value in production.
+        profiles_sample_rate=1.0,
     )
 
     # --- Loglashni sozlash ---
     log_format = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    logging.basicConfig(level=logging.DEBUG, format=log_format)
+    logging.basicConfig(level=logging.INFO, format=log_format) # DEBUG o'rniga INFOga qaytaramiz
     logger = logging.getLogger(__name__)
-    logger.info("Bot starting with Sentry and all configurations...")
+    logger.info("Bot starting with Sentry configured for Backend...")
 
     # --- Asosiy sozlamalar ---
     db_pool = await create_pool()
@@ -49,7 +55,7 @@ async def main():
 
     i18n_middleware.setup(dispatcher=dp)
 
-    # --- Repositoriya va Servislarni sozlash ---
+    # --- Repozitoriya va Servislarni sozlash ---
     user_repo = UserRepository(db_pool)
     scheduler_repo = SchedulerRepository(db_pool)
     channel_repo = ChannelRepository(db_pool)
@@ -94,7 +100,6 @@ async def main():
     try:
         scheduler.start()
         
-        # Telegramdan barcha kerakli yangilanishlarni qabul qilish uchun
         allowed_updates = dp.resolve_used_update_types(skip_events={"message_reaction", "message_reaction_count"})
         logger.info(f"Starting polling with allowed updates: {allowed_updates}")
         
