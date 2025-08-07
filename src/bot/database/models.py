@@ -1,8 +1,21 @@
+from dataclasses import dataclass
 from sqlalchemy import (
     MetaData, Table, Column, Integer, BigInteger, String, DateTime,
     ForeignKey, Text, JSON, Boolean
 )
 from sqlalchemy.sql import func
+
+# --- YANGI KLASS ---
+# Bu klass foydalanuvchining obuna holati haqidagi ma'lumotlarni
+# bir joyda saqlash uchun qulay "konteyner" vazifasini bajaradi.
+@dataclass
+class SubscriptionStatus:
+    plan_name: str
+    max_channels: int
+    current_channels: int
+    max_posts_per_month: int
+    current_posts_this_month: int
+
 
 # Alembic va SQLAlchemy uchun yagona metadata obyekti
 metadata_obj = MetaData()
