@@ -6,11 +6,10 @@ import { ThemeProvider, CssBaseline } from '@mui/material';
 import theme from './theme.js';
 import * as Sentry from "@sentry/react";
 
-// Sentry'ni to'g'rilangan sozlamalar bilan ishga tushiramiz
+// Sentry'ni sizning yangi DSN kalitingiz bilan ishga tushiramiz
 Sentry.init({
-  dsn: "https://1c970d384ec6c7f7f6ec0d9930801d250a4509801364324352.ingest.us.sentry.io/4509801366290432",
+  dsn: "https://ee3c1d2017b9bd97f484190782d92e01@o4509801364324352.ingest.us.sentry.io/4509801367732224",
   integrations: [
-    // Xato qator olib tashlandi
     Sentry.browserTracingIntegration(),
     Sentry.replayIntegration(),
   ],
