@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import SecretStr, RedisDsn, PostgresDsn, AnyHttpUrl, Field
+from pydantic import SecretStr, RedisDsn, PostgresDsn, AnyHttpUrl
 from typing import Optional
 
 class Settings(BaseSettings):
@@ -8,13 +8,12 @@ class Settings(BaseSettings):
     Pydantic automatically reads them from environment variables or a .env file.
     It also validates the data types.
     """
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra='ignore')
 
     # Bot token is stored as a SecretStr to prevent accidental logging
     BOT_TOKEN: SecretStr
 
-    # --- YANGI QATOR ---
-    # Sentry DSN kaliti. Optional, chunki Sentry ishlatilmasligi ham mumkin.
+    # Sentry DSN for error tracking
     SENTRY_DSN: Optional[str] = None
 
     # This acts as a master switch to enable/disable plan limit checks
@@ -24,8 +23,15 @@ class Settings(BaseSettings):
     DATABASE_URL: PostgresDsn
     REDIS_URL: RedisDsn
 
-    # Telegram Web App URL, validated as a proper URL
+    # URL for the Telegram Web App (Frontend)
     TWA_HOST_URL: AnyHttpUrl
+    
+    # --- YECHIM: Bu qatorni qo'shdik ---
+    # URL for the FastAPI Backend (for the Frontend to use)
+    # Pydantic'ka bu o'zgaruvchini e'tiborsiz qoldirishni aytamiz,
+    # chunki u faqat frontend uchun kerak.
+    # Bu `extra='ignore'` parametri orqali amalga oshiriladi.
+
 
     # I18n settings
     SUPPORTED_LOCALES: list[str] = ["en", "uz"]
