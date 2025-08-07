@@ -31,7 +31,9 @@ class SubscriptionService:
         if not self.settings.ENFORCE_PLAN_LIMITS:
             return True
 
-        user_plan_name = await self.user_repo.get_user_plan(user_id)
+        # --- TUZATISH ---
+        # Metod nomini get_user_plan_name ga o'zgartiramiz
+        user_plan_name = await self.user_repo.get_user_plan_name(user_id)
         if not user_plan_name:
             return False # Should not happen for existing users
 
@@ -52,7 +54,9 @@ class SubscriptionService:
         if not self.settings.ENFORCE_PLAN_LIMITS:
             return True
             
-        user_plan_name = await self.user_repo.get_user_plan(user_id)
+        # --- TUZATISH ---
+        # Metod nomini get_user_plan_name ga o'zgartiramiz
+        user_plan_name = await self.user_repo.get_user_plan_name(user_id)
         if not user_plan_name:
             return False
 
@@ -73,7 +77,9 @@ class SubscriptionService:
         Gathers all information about the user's current plan, limits, and usage.
         Returns a dataclass object or None if the user/plan is not found.
         """
-        user_plan_name = await self.user_repo.get_user_plan(user_id)
+        # --- TUZATISH ---
+        # Metod nomini get_user_plan_name ga o'zgartiramiz
+        user_plan_name = await self.user_repo.get_user_plan_name(user_id)
         if not user_plan_name:
             return None
 
@@ -83,6 +89,8 @@ class SubscriptionService:
 
         # Get current usage stats
         current_channels = await self.channel_repo.count_user_channels(user_id)
+        # BU YERDA XATOLIK BO'LISHI MUMKIN: count_user_posts_this_month mavjud emas
+        # Buni keyingi qadamda scheduler_repository.py da qo'shamiz
         current_posts = await self.scheduler_repo.count_user_posts_this_month(user_id)
 
         # Create and return the status object
