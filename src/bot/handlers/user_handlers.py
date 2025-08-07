@@ -1,89 +1,103 @@
-import logging
-from aiogram import Router, F, types
-from aiogram.filters import CommandStart, Command
-from aiogram.fsm.context import FSMContext
-from aiogram.types import (
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    Message,
-    WebAppInfo,
-)
-from aiogram_i18n import I18nContext
+import asyncpg
+import json
+from datetime import datetime
+from typing import Optional, Dict, Any, List
 
-from src.bot.config import settings
-from src.bot.database.repositories import UserRepository
-from src.bot.services.subscription_service import SubscriptionService
+class SchedulerRepository:
+    def __init__(self, pool: asyncpg.Pool):
+        self.pool = pool
 
-router = Router()
-logger = logging.getLogger(__name__)
+    # --- YECHIM: 'inline_buttons' argumenti qo'shildi ---
+    async def create_scheduled_post(
+        self,
+        channel_id: int,
+        schedule_time: datetime,
+        text: Optional[str] = None,
+        file_id: Optional[str] = None,
+        file_type: Optional[str] = None,
+        inline_buttons: Optional[str] = None  # JSON satri sifatida qabul qilamiz
+    ) -> int:
+        """
+        Creates a new post in the database. Now accepts inline_buttons as a JSON string.
+        """
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(
+                """
+                INSERT INTO scheduled_posts (channel_id, text, file_id, file_type, schedule_time, inline_buttons)
+                VALUES ($1, $2, $3, $4, $5, $6)
+                RETURNING post_id
+                """,
+                channel_id, text, file_id, file_type, schedule_time, inline_buttons
+            )
 
-# handle_web_app_data funksiyasi olib tashlandi.
+    async def get_scheduled_post(self, post_id: int) -> Optional[Dict[str, Any]]:
+        """
+        Retrieves a single scheduled post, including media info.
+        """
+        async with self.pool.acquire() as conn:
+            # JOIN so'rovini qo'shamiz, chunki inline tugmalar uchun kanal nomi kerak bo'lishi mumkin
+            return await conn.fetchrow(
+                """
+                SELECT sp.*, c.channel_name 
+                FROM scheduled_posts sp
+                JOIN channels c ON sp.channel_id = c.channel_id
+                WHERE sp.post_id = $1
+                """,
+                post_id
+            )
 
-@router.message(CommandStart())
-async def cmd_start(message: Message, i18n: I18nContext, user_repo: UserRepository):
-    await user_repo.create_user(
-        user_id=message.from_user.id, username=message.from_user.username
-    )
-    await message.answer(i18n.get("start_message", user_name=message.from_user.full_name))
+    async def update_post_status(self, post_id: int, status: str):
+        """Updates the status of a post (e.g., 'pending', 'sent', 'failed')."""
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                "UPDATE scheduled_posts SET status = $1 WHERE post_id = $2",
+                status, post_id
+            )
+            
+    async def set_sent_message_id(self, post_id: int, message_id: int):
+        """Stores the message_id of the post after it has been sent."""
+        async with self.pool.acquire() as conn:
+            await conn.execute("UPDATE scheduled_posts SET sent_message_id = $1 WHERE post_id = $2", message_id, post_id)
 
+    async def get_pending_posts_by_user(self, user_id: int) -> List[Dict[str, Any]]:
+        """Retrieves all posts with 'pending' status for a specific user."""
+        async with self.pool.acquire() as conn:
+            return await conn.fetch(
+                """
+                SELECT
+                    sp.post_id,
+                    sp.text,
+                    sp.file_id,
+                    sp.file_type,
+                    sp.schedule_time,
+                    sp.inline_buttons,
+                    c.channel_name
+                FROM scheduled_posts sp
+                JOIN channels c ON sp.channel_id = c.channel_id
+                WHERE c.admin_id = $1 AND sp.status = 'pending'
+                ORDER BY sp.schedule_time ASC;
+                """,
+                user_id
+            )
 
-@router.message(Command("dashboard"))
-async def cmd_dashboard(message: Message, i18n: I18nContext):
-    web_app_info = WebAppInfo(url=str(settings.TWA_HOST_URL))
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[[InlineKeyboardButton(text=i18n.get("menu-button-dashboard"), web_app=web_app_info)]]
-    )
-    await message.answer("Click the button below to open your dashboard:", reply_markup=keyboard)
-
-
-@router.message(Command("myplan"))
-async def my_plan_handler(
-    message: Message,
-    i18n: I18nContext,
-    subscription_service: SubscriptionService,
-):
-    status = await subscription_service.get_user_subscription_status(
-        message.from_user.id
-    )
-    if not status:
-        return await message.answer(i18n.get("myplan-error"))
-        
-    # ... qolgan qismi o'zgarishsiz ...
-    text = [f"<b>{i18n.get('myplan-header')}</b>\n"]
-    text.append(i18n.get("myplan-plan-name", plan_name=status.plan_name.upper()))
-    if status.max_channels == -1:
-        text.append(i18n.get("myplan-channels-unlimited", current=status.current_channels))
-    else:
-        text.append(i18n.get("myplan-channels-limit", current=status.current_channels, max=status.max_channels))
-    if status.max_posts_per_month == -1:
-        text.append(i18n.get("myplan-posts-unlimited", current=status.current_posts_this_month))
-    else:
-        text.append(i18n.get("myplan-posts-limit", current=status.current_posts_this_month, max=status.max_posts_per_month))
-    await message.answer("\n".join(text))
-
-
-@router.message(F.content_type.in_({types.ContentType.PHOTO, types.ContentType.VIDEO}))
-async def handle_media(message: Message, state: FSMContext, i18n: I18nContext):
-    # Bu logikani keyinroq API'ga o'tkazamiz.
-    # Hozircha foydalanuvchi rasm yuborsa, uni TWA'da ko'rsatish logikasi ishlamaydi.
-    # Buni keyingi qadamda to'g'rilaymiz.
-    file_id = None
-    file_type = None
-
-    if message.photo:
-        file_id = message.photo[-1].file_id
-        file_type = "photo"
-    elif message.video:
-        file_id = message.video.file_id
-        file_type = "video"
-
-    if file_id and file_type:
-        await state.update_data(media_file_id=file_id, media_file_type=file_type)
-        await message.answer(i18n.get("media-received-success"))
-
-@router.message()
-async def unhandled_message_handler(message: Message):
-    logger.info(
-        f"CATCH-ALL HANDLER: Caught a message that wasn't handled. "
-        f"Content type: {message.content_type}. Text: '{message.text}'"
-    )
+    async def delete_scheduled_post(self, post_id: int) -> bool:
+        """Deletes a post from the database and returns True if successful."""
+        async with self.pool.acquire() as conn:
+            # Bog'liqliklar sababli avval `post_views` dan o'chirishimiz kerak bo'lishi mumkin
+            await conn.execute("DELETE FROM post_views WHERE post_id = $1", post_id)
+            result = await conn.execute("DELETE FROM scheduled_posts WHERE post_id = $1", post_id)
+            return result != 'DELETE 0'
+            
+    async def count_user_posts_this_month(self, user_id: int) -> int:
+        """Counts how many posts a user has created in the current calendar month."""
+        async with self.pool.acquire() as conn:
+            return await conn.fetchval(
+                """
+                SELECT COUNT(*)
+                FROM scheduled_posts sp
+                JOIN channels c ON sp.channel_id = c.channel_id
+                WHERE c.admin_id = $1
+                  AND sp.created_at >= date_trunc('month', CURRENT_DATE);
+                """,
+                user_id
+            )
