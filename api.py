@@ -1,3 +1,4 @@
+import json
 import logging
 import sentry_sdk
 import asyncio
@@ -56,10 +57,15 @@ async def shutdown_event():
         await db_pool.close()
     logger.info("FastAPI: Database pool and Scheduler closed.")
 
-# --- CORS Middleware ---
+# --- CORS Middleware (YANGI, TO'G'RI VERSIYASI) ---
+# Veb-ilovamiz ishlayotgan aniq manzilni ko'rsatamiz
+origins = [
+    "https://fuzzy-adventure-5vgrx54q557f7vww-5173.app.github.dev",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins, # Endi "*" o'rniga aniq ro'yxatni ishlatamiz
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
