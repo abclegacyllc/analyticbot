@@ -1,5 +1,6 @@
 import logging
 import sentry_sdk
+import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -66,9 +67,10 @@ async def add_channel_endpoint(request: AddChannelRequest):
         raise HTTPException(status_code=400, detail="Invalid format. Channel username must start with @")
     
     try:
-        # Telegram API'ga so'rov
-        chat = await bot.get_chat(chat_id=request.channel_name)
-        bot_member = await bot.get_chat_member(chat_id=chat.id, user_id=bot.id)
+        # --- 2. MUHIM O'ZGARISH ---
+        # Telegram API'ga 10 soniyalik timeout bilan so'rov yuboramiz
+        chat = await bot.get_chat(chat_id=request.channel_name, request_timeout=10)
+        bot_member = await bot.get_chat_member(chat_id=chat.id, user_id=bot.id, request_timeout=10)
 
         if bot_member.status != ChatMemberStatus.ADMINISTRATOR:
             raise HTTPException(status_code=403, detail=f"Bot is not an admin in {request.channel_name}.")
@@ -82,6 +84,9 @@ async def add_channel_endpoint(request: AddChannelRequest):
         
         return {"success": True, "message": f"Channel '{chat.title}' added successfully!"}
 
+    except asyncio.TimeoutError:
+        logger.error(f"API add_channel: Telegram API timed out for '{request.channel_name}'")
+        raise HTTPException(status_code=504, detail="Could not connect to Telegram servers. Please try again later.")
     except TelegramBadRequest:
         logger.warning(f"API add_channel: Channel '{request.channel_name}' not found.")
         raise HTTPException(status_code=404, detail=f"Channel '{request.channel_name}' not found or the bot does not have access to it.")
