@@ -1,41 +1,84 @@
 import asyncio
 import logging
-
-from sqlalchemy import create_engine
-from sqlalchemy.ext.asyncio import create_async_engine
-
-from src.bot.database.models import metadata
+from asyncpg import Pool
 from src.bot.config import settings
+from src.bot.database import db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# The correct, sequential order for creating tables
+CREATE_TABLE_STATEMENTS = [
+    """
+    CREATE TABLE IF NOT EXISTS plans (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(50) UNIQUE NOT NULL,
+        max_channels INTEGER DEFAULT 1,
+        max_posts_per_month INTEGER DEFAULT 30
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS users (
+        id BIGINT PRIMARY KEY,
+        username VARCHAR(255),
+        plan_id INTEGER DEFAULT 1 REFERENCES plans(id),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS channels (
+        id BIGINT PRIMARY KEY,
+        user_id BIGINT NOT NULL REFERENCES users(id),
+        title VARCHAR(255),
+        username VARCHAR(255) UNIQUE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS scheduled_posts (
+        id SERIAL PRIMARY KEY,
+        user_id BIGINT REFERENCES users(id),
+        channel_id BIGINT REFERENCES channels(id),
+        post_text TEXT,
+        media_id VARCHAR(255),
+        media_type VARCHAR(50),
+        inline_buttons JSON,
+        status VARCHAR(50) DEFAULT 'pending',
+        schedule_time TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT now(),
+        views INTEGER DEFAULT 0
+    );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS sent_posts (
+        id SERIAL PRIMARY KEY,
+        scheduled_post_id INTEGER NOT NULL REFERENCES scheduled_posts(id),
+        channel_id BIGINT NOT NULL REFERENCES channels(id),
+        message_id BIGINT NOT NULL,
+        sent_at TIMESTAMP WITH TIME ZONE DEFAULT now()
+    );
+    """
+]
+
 async def main():
     """
-    Connects to the database and creates all tables based on models.py.
+    Connects to the database and manually creates all tables one by one.
     """
     logger.info("Connecting to the database...")
-    
-    # SQLAlchemy 1.4/2.0 requires a sync engine for metadata.create_all()
-    # We use a trick to create tables using a sync wrapper around the async driver.
-    # Note: Pydantic v2 returns a string, so we convert it.
-    db_url = str(settings.DATABASE_URL.unicode_string())
-    sync_db_url = db_url.replace("postgresql+asyncpg://", "postgresql://")
+    db_pool: Pool = await db.create_pool()
     
     try:
-        # Create a synchronous engine
-        engine = create_engine(sync_db_url)
-        
-        # Create all tables
-        logger.info("Creating tables...")
-        metadata.create_all(engine)
-        
-        logger.info("✅ Tables created successfully!")
+        async with db_pool.acquire() as connection:
+            logger.info("Starting table creation...")
+            for i, statement in enumerate(CREATE_TABLE_STATEMENTS, 1):
+                logger.info(f"Executing statement {i}/{len(CREATE_TABLE_STATEMENTS)}...")
+                await connection.execute(statement)
+            logger.info("✅ All tables created successfully!")
     except Exception as e:
-        logger.error(f"❌ An error occurred while creating tables: {e}", exc_info=True)
+        logger.error(f"❌ An error occurred: {e}", exc_info=True)
     finally:
-        if 'engine' in locals():
-            engine.dispose()
+        await db_pool.close()
+        logger.info("Database connection closed.")
 
 if __name__ == "__main__":
     asyncio.run(main())
