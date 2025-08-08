@@ -1,0 +1,26 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+env/
+venv/
+pip-log.txt
+pip-delete-this-directory.txt
+celerybeat-schedule
+
+# IDE / Editor
+.idea/
+.vscode/
+*.swp
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
