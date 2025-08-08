@@ -1,88 +1,40 @@
-import asyncpg
-from typing import Optional, Dict, Any, List, Tuple
-from datetime import date, timedelta
+from asyncpg import Pool
+from typing import List, Dict, Any
 
 class AnalyticsRepository:
-    def __init__(self, pool: asyncpg.Pool):
-        self.pool = pool
+    def __init__(self, pool: Pool):
+        self._pool = pool
 
-    async def get_post_details(self, post_id: int) -> Optional[Dict[str, Any]]:
-        """Retrieves details needed for analytics, like channel_id and sent_message_id."""
-        async with self.pool.acquire() as conn:
-            return await conn.fetchrow(
-                """
-                SELECT channel_id, sent_message_id
-                FROM scheduled_posts
-                WHERE post_id = $1 AND status = 'sent'
-                """,
-                post_id
-            )
-
-    async def get_daily_views(
-        self, user_id: int, days: int = 30, channel_id: Optional[int] = None
-    ) -> List[Tuple[date, int]]:
+    async def log_sent_post(self, scheduled_post_id: int, channel_id: int, message_id: int):
         """
-        Retrieves the total daily views for a user's channels.
-        Can be filtered by a specific channel_id.
+        Kanalga yuborilgan post haqidagi ma'lumotni 'sent_posts' jadvaliga yozadi.
         """
-        async with self.pool.acquire() as conn:
-            end_date = date.today()
-            start_date = end_date - timedelta(days=days - 1)
-
-            base_channels_query = "SELECT channel_id FROM channels WHERE admin_id = $1"
-            query_params = [user_id]
-            
-            main_query = """
-                SELECT
-                    CAST(p.schedule_time AS DATE) AS view_date,
-                    SUM(p.views) AS total_views
-                FROM
-                    scheduled_posts p
-                WHERE
-                    p.channel_id IN ({channels_query})
-                    AND p.status = 'sent'
-                    AND p.views IS NOT NULL
-                    AND CAST(p.schedule_time AS DATE) BETWEEN ${param_start} AND ${param_end}
-                GROUP BY
-                    view_date
-                ORDER BY
-                    view_date;
-            """
-
-            if channel_id:
-                channels_query = base_channels_query + " AND channel_id = $2"
-                query_params.append(channel_id)
-                param_start, param_end = 3, 4
-            else:
-                channels_query = base_channels_query
-                param_start, param_end = 2, 3
-
-            query_params.extend([start_date, end_date])
-            
-            final_stmt = main_query.format(
-                channels_query=channels_query, 
-                param_start=param_start, 
-                param_end=param_end
-            )
-
-            return await conn.fetch(final_stmt, *query_params)
-
-    # --- UPDATED METHOD FOR THE BACKGROUND TASK ---
-    async def get_posts_to_update_views(self) -> List[Dict[str, Any]]:
+        query = """
+            INSERT INTO sent_posts (scheduled_post_id, channel_id, message_id)
+            VALUES ($1, $2, $3);
         """
-        Gets all sent posts, joining with channels to get the admin_id
-        for permission checks during view fetching.
-        """
-        async with self.pool.acquire() as conn:
-            # FIXED a bug here: joined with 'channels' to get the correct admin_id
-            return await conn.fetch("""
-                SELECT p.post_id, c.admin_id
-                FROM scheduled_posts p
-                JOIN channels c ON p.channel_id = c.channel_id
-                WHERE p.status = 'sent'
-            """)
+        await self._pool.execute(query, scheduled_post_id, channel_id, message_id)
 
-    async def update_post_views(self, post_id: int, views: int):
-        """Updates the view count for a specific post."""
-        async with self.pool.acquire() as conn:
-            await conn.execute("UPDATE scheduled_posts SET views = $1 WHERE post_id = $2", views, post_id)
+    async def get_all_trackable_posts(self, interval_days: int = 7) -> List[Dict[str, Any]]:
+        """
+        Ko'rishlar sonini tekshirish kerak bo'lgan barcha postlarni oladi.
+        Masalan, oxirgi 7 kun ichida yuborilganlar.
+        """
+        query = """
+            SELECT
+                sp.id AS scheduled_post_id,
+                sp.views,
+                snt.channel_id,
+                snt.message_id
+            FROM scheduled_posts sp
+            JOIN sent_posts snt ON sp.id = snt.scheduled_post_id
+            WHERE snt.sent_at >= NOW() - ($1 || ' days')::INTERVAL;
+        """
+        return await self._pool.fetch(query, interval_days)
+
+    async def update_post_views(self, scheduled_post_id: int, views: int):
+        """
+        Postning ko'rishlar sonini 'scheduled_posts' jadvalida yangilaydi.
+        """
+        query = "UPDATE scheduled_posts SET views = $1 WHERE id = $2;"
+        await self._pool.execute(query, views, scheduled_post_id)
