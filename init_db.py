@@ -1,4 +1,3 @@
-# init_db.py
 import asyncio
 import logging
 from asyncpg import Pool
@@ -8,8 +7,8 @@ from src.bot.database import db
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 1-QISM: Jadvallarni bog'liqliksiz (FOREIGN KEY'siz) yaratish
-CREATE_TABLE_STATEMENTS = [
+# --- STEP 1: Create all tables WITHOUT any foreign key constraints ---
+CREATE_TABLES_COMMANDS = [
     """
     CREATE TABLE IF NOT EXISTS plans (
         id SERIAL PRIMARY KEY,
@@ -22,7 +21,7 @@ CREATE_TABLE_STATEMENTS = [
     CREATE TABLE IF NOT EXISTS users (
         id BIGINT PRIMARY KEY,
         username VARCHAR(255),
-        plan_id INTEGER DEFAULT 1,
+        plan_id INTEGER,
         created_at TIMESTAMP WITH TIME ZONE DEFAULT now()
     );
     """,
@@ -61,8 +60,8 @@ CREATE_TABLE_STATEMENTS = [
     """
 ]
 
-# 2-QISM: Jadvallar orasidagi bog'liqliklarni (FOREIGN KEY) qo'shish
-ADD_CONSTRAINTS_STATEMENTS = [
+# --- STEP 2: Add all the foreign key constraints AFTER the tables exist ---
+ADD_CONSTRAINTS_COMMANDS = [
     "ALTER TABLE users ADD CONSTRAINT fk_users_plan_id FOREIGN KEY (plan_id) REFERENCES plans(id);",
     "ALTER TABLE channels ADD CONSTRAINT fk_channels_user_id FOREIGN KEY (user_id) REFERENCES users(id);",
     "ALTER TABLE scheduled_posts ADD CONSTRAINT fk_scheduled_posts_user_id FOREIGN KEY (user_id) REFERENCES users(id);",
@@ -73,26 +72,24 @@ ADD_CONSTRAINTS_STATEMENTS = [
 
 
 async def main():
-    """Jadvallarni va keyin ular orasidagi bog'liqliklarni alohida-alohida yaratadi."""
+    """Manually creates all tables first, then adds all foreign key constraints."""
     logger.info("Connecting to the database...")
     db_pool: Pool = await db.create_pool()
-    
+
     try:
         async with db_pool.acquire() as connection:
-            # 1-qismni bajaramiz
-            logger.info("Step 1: Creating tables without constraints...")
-            for i, statement in enumerate(CREATE_TABLE_STATEMENTS, 1):
+            logger.info("--- Step 1: Creating tables without constraints ---")
+            for statement in CREATE_TABLES_COMMANDS:
                 await connection.execute(statement)
-            logger.info("✅ All tables created.")
+            logger.info("✅ All tables created successfully.")
 
-            # 2-qismni bajaramiz
-            logger.info("Step 2: Adding foreign key constraints...")
-            for i, statement in enumerate(ADD_CONSTRAINTS_STATEMENTS, 1):
+            logger.info("--- Step 2: Adding foreign key constraints ---")
+            for statement in ADD_CONSTRAINTS_COMMANDS:
                 await connection.execute(statement)
-            logger.info("✅ All constraints added successfully!")
+            logger.info("✅ All foreign key constraints added successfully!")
 
     except Exception as e:
-        logger.error(f"❌ An error occurred: {e}", exc_info=True)
+        logger.error(f"❌ An error occurred during database initialization: {e}", exc_info=True)
     finally:
         await db_pool.close()
         logger.info("Database connection closed.")

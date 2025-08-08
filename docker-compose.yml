@@ -1,7 +1,6 @@
 version: '3.9'
 
 services:
-  # 1. Ma'lumotlar bazasi
   postgres:
     image: postgres:15-alpine
     container_name: analytic_db
@@ -11,8 +10,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+      # --- ADD THIS LINE ---
+      - ./postgres-init:/docker-entrypoint-initdb.d
     ports:
-      - "${POSTGRES_PORT}:5432" # .env faylidan portni o'qiydi
+      - "${POSTGRES_PORT}:5432"
     networks:
       - analytic_net
     restart: unless-stopped
