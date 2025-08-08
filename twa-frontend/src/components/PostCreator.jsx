@@ -1,107 +1,102 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { Box, TextField, Button, Typography, Select, MenuItem, FormControl, InputLabel, CircularProgress } from '@mui/material';
+import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
+import PhotoCamera from '@mui/icons-material/PhotoCamera';
 import { useAppStore } from '../store/appStore.js';
 import ButtonConstructor from './ButtonConstructor.jsx';
-import { Box, TextField, FormControl, InputLabel, Select, MenuItem, Typography } from '@mui/material';
-
-const webApp = window.Telegram.WebApp;
 
 const PostCreator = () => {
-    const { channels, isLoading, pendingMedia, schedulePost } = useAppStore();
-    const [postText, setPostText] = useState('');
-    const [channelId, setChannelId] = useState('');
-    const [scheduleTime, setScheduleTime] = useState('');
+    const { channels, schedulePost, isLoading, uploadMedia, pendingMedia } = useAppStore();
+    const [text, setText] = useState('');
+    const [selectedChannel, setSelectedChannel] = useState('');
+    const [scheduleTime, setScheduleTime] = useState(null);
     const [buttons, setButtons] = useState([]);
 
-    const mainButton = webApp.MainButton;
-
-    useEffect(() => {
-        if (!isLoading && channels.length > 0 && !channelId) {
-            setChannelId(channels[0].id);
-        }
-    }, [isLoading, channels, channelId]);
-
-    useEffect(() => {
-        const isContentPresent = postText.trim() !== '' || pendingMedia || buttons.length > 0;
-        const isReady = channelId && scheduleTime && isContentPresent;
-
-        if (isReady) {
-            mainButton.setParams({
-                text: 'Schedule Post',
-                color: '#58a6ff', // MUI primary color
-                is_visible: true,
-                is_active: true,
+    const handleSchedulePost = () => {
+        if (text && selectedChannel && scheduleTime) {
+            schedulePost({
+                text,
+                channel_id: selectedChannel,
+                schedule_time: scheduleTime.toISOString(),
+                inline_buttons: buttons.length > 0 ? { inline_keyboard: [buttons] } : null
             });
-        } else {
-            mainButton.hide();
-        }
-    }, [postText, channelId, scheduleTime, pendingMedia, buttons, mainButton]);
-
-    useEffect(() => {
-        const handleSendData = () => {
-            const dataToSend = {
-                text: postText,
-                channel_id: channelId,
-                schedule_time: scheduleTime,
-                file_id: pendingMedia ? pendingMedia.file_id : null,
-                file_type: pendingMedia ? pendingMedia.file_type : null,
-                inline_buttons: buttons,
-            };
-            schedulePost(dataToSend);
-            
-            setPostText('');
-            setScheduleTime('');
+            // Reset fields after scheduling
+            setText('');
+            setSelectedChannel('');
+            setScheduleTime(null);
             setButtons([]);
-        };
+        }
+    };
 
-        mainButton.onClick(handleSendData);
-        return () => mainButton.offClick(handleSendData);
-    }, [postText, channelId, scheduleTime, pendingMedia, buttons, schedulePost, mainButton]);
+    const handleFileChange = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            uploadMedia(file);
+        }
+    };
 
     return (
-        <Box sx={{ mb: 3, p: 2, bgcolor: 'background.paper', borderRadius: '6px' }}>
+        <Box sx={{ mb: 3, p: 2, border: '1px solid #30363d', borderRadius: '6px' }}>
             <Typography variant="h6" gutterBottom>Create New Post</Typography>
-            <Box component="form" noValidate autoComplete="off" sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <FormControl fullWidth size="small">
-                    <InputLabel id="channel-select-label">Channel</InputLabel>
-                    <Select
-                        labelId="channel-select-label"
-                        id="channel-select"
-                        value={channelId}
-                        label="Channel"
-                        onChange={(e) => setChannelId(e.target.value)}
-                        disabled={isLoading || channels.length === 0}
-                    >
-                        {isLoading ? (
-                            <MenuItem value=""><em>Loading channels...</em></MenuItem>
-                        ) : channels.length > 0 ? (
-                            channels.map((channel) => (
-                                <MenuItem key={channel.id} value={channel.id}>{channel.name}</MenuItem>
-                            ))
-                        ) : (
-                            <MenuItem value=""><em>No channels found</em></MenuItem>
-                        )}
-                    </Select>
-                </FormControl>
-                <TextField
-                    label={pendingMedia ? "Caption (optional)" : "Text"}
-                    multiline
-                    rows={4}
-                    value={postText}
-                    onChange={(e) => setPostText(e.target.value)}
+
+            <TextField
+                fullWidth
+                multiline
+                rows={4}
+                variant="outlined"
+                placeholder="Write your post content here..."
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                margin="normal"
+            />
+
+            <Box sx={{ mt: 1, mb: 2 }}>
+                <Button
+                    component="label"
+                    role={undefined}
                     variant="outlined"
-                    fullWidth
-                />
-                <TextField
-                    label="Schedule Time"
-                    type="datetime-local"
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                    InputLabelProps={{ shrink: true }}
-                    fullWidth
-                    size="small"
-                />
-                <ButtonConstructor buttons={buttons} onButtonsChange={setButtons} />
+                    tabIndex={-1}
+                    startIcon={<PhotoCamera />}
+                    disabled={!!pendingMedia.file_id || isLoading} // Disable if media is already uploaded or loading
+                >
+                    Upload Photo
+                    <input type="file" hidden accept="image/*" onChange={handleFileChange} />
+                </Button>
             </Box>
+
+            <ButtonConstructor buttons={buttons} setButtons={setButtons} />
+
+            <FormControl fullWidth margin="normal">
+                <InputLabel id="channel-select-label">Select Channel</InputLabel>
+                <Select
+                    labelId="channel-select-label"
+                    value={selectedChannel}
+                    label="Select Channel"
+                    onChange={(e) => setSelectedChannel(e.target.value)}
+                >
+                    {channels.map((channel) => (
+                        <MenuItem key={channel.id} value={channel.id}>
+                            {channel.title} ({channel.username})
+                        </MenuItem>
+                    ))}
+                </Select>
+            </FormControl>
+
+            <DateTimePicker
+                label="Schedule Time"
+                value={scheduleTime}
+                onChange={(newValue) => setScheduleTime(newValue)}
+                sx={{ width: '100%', mt: 2, mb: 2 }}
+            />
+
+            <Button
+                variant="contained"
+                fullWidth
+                onClick={handleSchedulePost}
+                disabled={!text || !selectedChannel || !scheduleTime || isLoading}
+            >
+                {isLoading ? <CircularProgress size={24} /> : 'Schedule Post'}
+            </Button>
         </Box>
     );
 };
