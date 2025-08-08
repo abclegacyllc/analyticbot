@@ -1,42 +1,49 @@
-import json
-from datetime import datetime
-from typing import List, Dict, Any, Optional
+from aiogram import Bot
+from aiogram.exceptions import TelegramAPIError
+import logging
 
-from src.bot.database.repositories import SchedulerRepository
-from src.bot.tasks import send_scheduled_message
+from src.bot.database.repositories import SchedulerRepository, AnalyticsRepository # AnalyticsRepository'ni import qilamiz
+
+logger = logging.getLogger(__name__)
 
 class SchedulerService:
-    # Endi bu servisga APScheduler keraksiz
-    def __init__(self, repo: SchedulerRepository):
-        self.repo = repo
+    # __init__ metodini o'zgartiramiz
+    def __init__(self, bot: Bot, scheduler_repo: SchedulerRepository, analytics_repo: AnalyticsRepository):
+        self.bot = bot
+        self.scheduler_repo = scheduler_repo
+        self.analytics_repo = analytics_repo
 
-    async def schedule_post(
-        self,
-        channel_id: int,
-        text: Optional[str],
-        schedule_time: datetime,
-        file_id: Optional[str] = None,
-        file_type: Optional[str] = None,
-        inline_buttons: Optional[List[Dict[str, str]]] = None
-    ):
-        buttons_json = json.dumps(inline_buttons) if inline_buttons else None
+    async def send_post_to_channel(self, post_data: dict):
+        """Rejalashtirilgan postni kanalga yuboradi va natijani log qiladi."""
+        try:
+            # Postni yuborish logikasi (sizning postingiz media yoki matn bo'lishiga qarab)
+            if post_data.get('media_id'):
+                # Media bilan yuborish
+                sent_message = await self.bot.send_photo(
+                    chat_id=post_data['channel_id'],
+                    photo=post_data['media_id'],
+                    caption=post_data['post_text'],
+                    reply_markup=post_data.get('inline_buttons')
+                )
+            else:
+                # Oddiy matn yuborish
+                sent_message = await self.bot.send_message(
+                    chat_id=post_data['channel_id'],
+                    text=post_data['post_text'],
+                    reply_markup=post_data.get('inline_buttons'),
+                    disable_web_page_preview=True
+                )
+            
+            # Post yuborilganini bazaga yozamiz
+            await self.analytics_repo.log_sent_post(
+                scheduled_post_id=post_data['id'],
+                channel_id=sent_message.chat.id,
+                message_id=sent_message.message_id
+            )
 
-        post_id = await self.repo.create_scheduled_post(
-            channel_id=channel_id,
-            text=text,
-            schedule_time=schedule_time,
-            file_id=file_id,
-            file_type=file_type,
-            inline_buttons=buttons_json
-        )
-        
-        # --- MUHIM O'ZGARISH: Vazifani Celery'ga yuborish ---
-        # `apply_async` metodi vazifani belgilangan vaqtda ishga tushirishni ta'minlaydi
-        send_scheduled_message.apply_async(args=[post_id], eta=schedule_time)
+            await self.scheduler_repo.update_post_status(post_data['id'], 'sent')
+            logger.info(f"Successfully sent post {post_data['id']} to channel {post_data['channel_id']}")
 
-    async def delete_post(self, post_id: int):
-        # Hozircha vazifani Celery'dan o'chirish murakkab.
-        # Shuning uchun oddiyroq yechim qilamiz: postning statusini o'zgartiramiz.
-        # send_scheduled_message funksiyasi statusni tekshirib, 'cancelled' bo'lsa,
-        # postni yubormaydi.
-        await self.repo.update_post_status(post_id, 'cancelled')
+        except TelegramAPIError as e:
+            await self.scheduler_repo.update_post_status(post_data['id'], 'error')
+            logger.error(f"Failed to send post {post_data['id']}: {e}", exc_info=True)
