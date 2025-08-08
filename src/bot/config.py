@@ -11,29 +11,40 @@ class Settings(BaseSettings):
     # Bot token is stored as a SecretStr to prevent accidental logging
     BOT_TOKEN: SecretStr
 
-    # Database and Redis URLs are validated to ensure they have the correct format
+    # --- PostgreSQL Sozlamalari ---
+    # Bu o'zgaruvchilar docker-compose.yml tomonidan ishlatiladi,
+    # lekin Pydantic ularni bilishi uchun shu yerda ham ta'riflab qo'yamiz.
+    POSTGRES_USER: str
+    POSTGRES_PASSWORD: str
+    POSTGRES_DB: str
+    POSTGRES_PORT: int
+    
+    # Python ilovasi uchun asosiy ulanish manzili
     DATABASE_URL: PostgresDsn
+    
+    # Redis ulanish manzili
     REDIS_URL: RedisDsn
 
-    # URL for the Telegram Web App (Frontend)
+    # Telegram Web App (Frontend) uchun manzil
     TWA_HOST_URL: AnyHttpUrl
     
-    # Sentry DSN for error tracking
+    # Xatoliklarni kuzatish uchun Sentry DSN
     SENTRY_DSN: Optional[str] = None
 
-    # This acts as a master switch to enable/disable plan limit checks
+    # Tarif rejalarini tekshirishni yoqish/o'chirish
     ENFORCE_PLAN_LIMITS: bool = True
     
-    # ID of the private channel used to store media and get file_ids
+    # Media-fayllarni saqlash uchun "ombor" kanal IDsi
     STORAGE_CHANNEL_ID: int
 
-    # I18n settings
+    # I18n (Lokalizatsiya) sozlamalari
     SUPPORTED_LOCALES: list[str] = ["en", "uz"]
     DEFAULT_LOCALE: str = "uz"
     
+    # Pydantic'ga .env faylini o'qishni buyuramiz
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
 
-# Create a single instance of the settings class
-# All other modules in the project will import this 'settings' object
+# Sozlamalarning yagona nusxasini yaratamiz
+# Loyihadagi boshqa barcha modullar shu 'settings' obyektini import qiladi
 settings = Settings()
