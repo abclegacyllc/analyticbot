@@ -13,14 +13,13 @@ const PostCreator = () => {
     const [buttons, setButtons] = useState([]);
 
     const handleSchedulePost = () => {
-        if (text && selectedChannel && scheduleTime) {
+        if ((text || pendingMedia.file_id) && selectedChannel && scheduleTime) {
             schedulePost({
                 text,
                 channel_id: selectedChannel,
                 schedule_time: scheduleTime.toISOString(),
                 inline_buttons: buttons.length > 0 ? { inline_keyboard: [buttons] } : null
             });
-            // Reset fields after scheduling
             setText('');
             setSelectedChannel('');
             setScheduleTime(null);
@@ -57,10 +56,10 @@ const PostCreator = () => {
                     variant="outlined"
                     tabIndex={-1}
                     startIcon={<PhotoCamera />}
-                    disabled={!!pendingMedia.file_id || isLoading} // Disable if media is already uploaded or loading
+                    disabled={!!pendingMedia.file_id || isLoading}
                 >
-                    Upload Photo
-                    <input type="file" hidden accept="image/*" onChange={handleFileChange} />
+                    Upload Media
+                    <input type="file" hidden accept="image/*,video/*" onChange={handleFileChange} />
                 </Button>
             </Box>
 
@@ -93,7 +92,7 @@ const PostCreator = () => {
                 variant="contained"
                 fullWidth
                 onClick={handleSchedulePost}
-                disabled={!text || !selectedChannel || !scheduleTime || isLoading}
+                disabled={(!text && !pendingMedia.file_id) || !selectedChannel || !scheduleTime || isLoading}
             >
                 {isLoading ? <CircularProgress size={24} /> : 'Schedule Post'}
             </Button>
