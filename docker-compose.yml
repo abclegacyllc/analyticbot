@@ -1,26 +1,91 @@
+version: '3.9'
+
 services:
+  # 1. Ma'lumotlar bazasi
   postgres:
-    image: postgres:16
-    container_name: analyticbot_postgres
-    restart: always
-    ports:
-      - "5432:5432"
+    image: postgres:15-alpine
+    container_name: analytic_db
     environment:
-      POSTGRES_USER: analyticuser
-      POSTGRES_PASSWORD: analyticpass
-      POSTGRES_DB: analyticbot_db
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     volumes:
-      - pgdata:/var/lib/postgresql/data
-
-  redis:
-    image: redis:7
-    container_name: analyticbot_redis
-    restart: always
+      - postgres_data:/var/lib/postgresql/data
     ports:
-      - "6379:6379"
-    volumes:
-      - redisdata:/data
+      - "${POSTGRES_PORT}:5432" # .env faylidan portni o'qiydi
+    networks:
+      - analytic_net
+    restart: unless-stopped
 
+  # 2. Redis (Celery uchun broker va kesh)
+  redis:
+    image: redis:7-alpine
+    container_name: analytic_redis
+    networks:
+      - analytic_net
+    restart: unless-stopped
+
+  # 3. Backend (Dockerfile'dan quriladi)
+  backend:
+    build: .
+    container_name: analytic_backend
+    env_file: .env # .env fayldagi barcha o'zgaruvchilarni oladi
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - analytic_net
+    restart: unless-stopped
+    command: >
+      sh -c "alembic upgrade head &&
+             python run_bot.py"
+
+  # 4. API (FastAPI) serveri
+  api:
+    build: .
+    container_name: analytic_api
+    env_file: .env
+    depends_on:
+      - postgres
+      - redis
+    networks:
+      - analytic_net
+    ports:
+      - "8000:8000" # TWA'dan so'rovlarni qabul qilish uchun
+    restart: unless-stopped
+    command: uvicorn api:app --host 0.0.0.0 --port 8000
+
+  # 5. Celery Worker
+  celery_worker:
+    build: .
+    container_name: analytic_celery_worker
+    env_file: .env
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - analytic_net
+    restart: unless-stopped
+    command: celery -A src.bot.celery_app worker -l info
+
+  # 6. Celery Beat (Vaqti-vaqti bilan ishlaydigan vazifalar uchun)
+  celery_beat:
+    build: .
+    container_name: analytic_celery_beat
+    env_file: .env
+    depends_on:
+      - redis
+      - postgres
+    networks:
+      - analytic_net
+    restart: unless-stopped
+    command: celery -A src.bot.celery_app beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
+
+# Ma'lumotlarni saqlash uchun Volume
 volumes:
-  pgdata:
-  redisdata:
+  postgres_data:
+
+# Servislar bir-biri bilan "gaplashishi" uchun tarmoq
+networks:
+  analytic_net:
+    driver: bridge
