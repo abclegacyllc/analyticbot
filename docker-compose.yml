@@ -36,9 +36,7 @@ services:
     networks:
       - analytic_net
     restart: unless-stopped
-    command: >
-      sh -c "alembic upgrade head &&
-             python run_bot.py"
+    command: python run_bot.py
 
   # 4. API (FastAPI) serveri
   api:
