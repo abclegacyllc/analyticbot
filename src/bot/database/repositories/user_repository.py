@@ -9,8 +9,6 @@ class UserRepository:
         """
         Creates a new user in the database if they don't already exist.
         """
-        # "ON CONFLICT" ensures that if the id already exists,
-        # the query does nothing and doesn't raise an error.
         query = """
             INSERT INTO users (id, username)
             VALUES ($1, $2)
@@ -28,10 +26,7 @@ class UserRepository:
     async def get_user_plan_name(self, user_id: int) -> Optional[str]:
         """
         Retrieves the name of the user's current subscription plan.
-        Returns the plan name as a string, or None if the user is not found.
         """
-        # SQL so'rovdagi ustun nomlari to'g'rilandi:
-        # u.id, p.id va p.name
         query = """
             SELECT p.name
             FROM users u
