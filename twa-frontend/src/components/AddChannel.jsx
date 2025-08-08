@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Box, TextField, Button, Typography, Alert } from '@mui/material';
+import { Box, TextField, Button, Typography, Alert, CircularProgress } from '@mui/material'; // CircularProgress qo'shildi
 import { useAppStore } from '../store/appStore.js';
 
 const AddChannel = () => {
-    const { addChannel, addChannelStatus } = useAppStore();
+    // isLoading holatini ham store'dan olamiz
+    const { addChannel, addChannelStatus, isLoading } = useAppStore();
     const [channelName, setChannelName] = useState('');
 
     const handleAdd = () => {
@@ -24,10 +25,18 @@ const AddChannel = () => {
                     placeholder="@channel_username"
                     value={channelName}
                     onChange={(e) => setChannelName(e.target.value)}
+                    disabled={isLoading} // So'rov paytida nofaol
                 />
-                <Button variant="contained" onClick={handleAdd}>Add</Button>
+                <Button 
+                    variant="contained" 
+                    onClick={handleAdd} 
+                    disabled={isLoading} // So'rov paytida nofaol
+                    sx={{ minWidth: '80px' }} // Tugma o'lchami o'zgarib ketmasligi uchun
+                >
+                    {isLoading ? <CircularProgress size={24} color="inherit" /> : 'Add'}
+                </Button>
             </Box>
-            {addChannelStatus.message && (
+            {addChannelStatus.message && !isLoading && (
                 <Alert severity={addChannelStatus.success ? 'success' : 'error'} sx={{ mt: 2 }}>
                     {addChannelStatus.message}
                 </Alert>
