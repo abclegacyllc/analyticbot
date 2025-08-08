@@ -1,26 +1,26 @@
 from celery import Celery
 from celery.schedules import crontab
+
 from src.bot.config import settings
 
-# Celery ilovasini yaratamiz
 celery_app = Celery(
     "tasks",
-    broker=settings.REDIS_URL.unicode_string(),  # Xabar brokeri sifatida Redis'ni ishlatamiz
-    backend=settings.REDIS_URL.unicode_string(), # Natijalarni saqlash uchun ham Redis
-    include=["src.bot.tasks"]  # Vazifalar (tasks) qaysi faylda joylashganini ko'rsatamiz
+    broker=settings.REDIS_URL,
+    include=["src.bot.tasks"]
 )
 
-# Celery sozlamalari
-celery_app.conf.update(
-    task_track_started=True,
-)
-
-# --- Davomiy (periodic) vazifalarni sozlash (Celery Beat) ---
-# Bu APScheduler'dagi interval vazifasining o'rnini bosadi
 celery_app.conf.beat_schedule = {
-    'update-post-views-every-hour': {
-        'task': 'src.bot.tasks.update_all_post_views',  # Ishga tushiriladigan vazifa
-        'schedule': 3600.0,  # Har 3600 soniyada (1 soatda)
+    # Har daqiqada rejalashtirilgan postlarni yuborishni tekshiradi
+    'send-scheduled-posts': {
+        'task': 'src.bot.tasks.send_pending_posts_task',
+        'schedule': crontab(minute='*'),  # Har daqiqada
+    },
+    # --- YANGI JADVAL ---
+    # Har 30 daqiqada postlarning ko'rishlar sonini yangilaydi
+    'update-post-views-every-30-minutes': {
+        'task': 'src.bot.tasks.update_post_views_task',
+        'schedule': crontab(minute='*/30'),  # Har 30 daqiqada
     },
 }
+
 celery_app.conf.timezone = 'UTC'
