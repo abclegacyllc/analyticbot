@@ -1,68 +1,62 @@
 import logging
-from io import BytesIO
-from datetime import date, timedelta
-from typing import Optional
-
 from aiogram import Bot
-from aiogram.exceptions import TelegramBadRequest
-from matplotlib import pyplot as plt, dates as mdates
+from aiogram.exceptions import TelegramAPIError
 
-# Note: We need to import from the new repositories path
-from src.bot.database.repositories import AnalyticsRepository, SchedulerRepository
-
+from src.bot.database.repositories import AnalyticsRepository
 
 logger = logging.getLogger(__name__)
 
 
 class AnalyticsService:
-    def __init__(self, bot: Bot, repository: AnalyticsRepository, scheduler_repository: SchedulerRepository):
+    def __init__(self, bot: Bot, analytics_repo: AnalyticsRepository):
         self.bot = bot
-        self.repository = repository
-        self.scheduler_repository = scheduler_repository
+        self.analytics_repo = analytics_repo
 
-    # ... existing get_post_views method ...
-
-    async def create_views_chart(
-        self, user_id: int, channel_id: Optional[int] = None, days: int = 30
-    ) -> Optional[BytesIO]:
+    async def update_all_post_views(self):
         """
-        Generates a line chart of total daily views for a user's channels.
-        Can be filtered by a specific channel_id.
+        Kuzatishdagi barcha postlarning ko'rishlar sonini yangilaydi.
+        Bu metod Celery vazifasi orqali vaqti-vaqti bilan chaqiriladi.
         """
-        daily_views = await self.repository.get_daily_views(user_id, days, channel_id)
+        trackable_posts = await self.analytics_repo.get_all_trackable_posts()
+        if not trackable_posts:
+            logger.info("No trackable posts found to update views.")
+            return
 
-        if not daily_views:
-            return None
+        updated_count = 0
+        for post in trackable_posts:
+            try:
+                # Postni o'z-o'ziga forward qilish orqali uning oxirgi holatini (va views sonini) olish
+                # Bu bot uchun maxfiy "log" kanali bo'lsa yanada yaxshi.
+                # Hozircha o'ziga forward qilish eng oddiy usul.
+                forwarded_message = await self.bot.forward_message(
+                    chat_id=post['channel_id'], # O'ziga forward qilish
+                    from_chat_id=post['channel_id'],
+                    message_id=post['message_id']
+                )
+                
+                # Forward qilingan xabarni darhol o'chiramiz
+                await self.bot.delete_message(
+                    chat_id=forwarded_message.chat.id,
+                    message_id=forwarded_message.message_id
+                )
+                
+                # Original xabardagi ko'rishlar sonini olamiz
+                current_views = forwarded_message.forward_from_message_id and forwarded_message.forward_origin.views or 0
 
-        # Prepare data for plotting, filling in days with no views
-        end_date = date.today()
-        start_date = end_date - timedelta(days=days - 1)
-        all_dates = [start_date + timedelta(days=i) for i in range(days)]
+                if current_views > post['views']:
+                    await self.analytics_repo.update_post_views(post['scheduled_post_id'], current_views)
+                    updated_count += 1
+
+            except TelegramAPIError as e:
+                # Xatoliklar bo'lishi mumkin: post o'chirilgan, bot kanaldan chiqarilgan va hokazo.
+                logger.warning(
+                    f"Could not update views for post {post['scheduled_post_id']} "
+                    f"in channel {post['channel_id']}. Reason: {e.message}"
+                )
+            except Exception as e:
+                logger.error(
+                    f"An unexpected error occurred while updating views for post {post['scheduled_post_id']}: {e}",
+                    exc_info=True
+                )
         
-        views_dict = {d: v for d, v in daily_views}
-        views_data = [views_dict.get(d, 0) for d in all_dates]
-
-        # Create the plot using matplotlib
-        plt.style.use('seaborn-v0_8-darkgrid')
-        fig, ax = plt.subplots(figsize=(12, 7))
-
-        ax.plot(all_dates, views_data, marker='o', linestyle='-', color='deepskyblue')
-        ax.fill_between(all_dates, views_data, color='deepskyblue', alpha=0.1)
-
-        # Formatting the plot for a nice look
-        ax.set_title(f'Total Post Views Over Last {days} Days', fontsize=16, pad=20)
-        ax.set_xlabel('Date', fontsize=12)
-        ax.set_ylabel('Total Views', fontsize=12)
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%b %d'))
-        ax.xaxis.set_major_locator(mdates.DayLocator(interval=max(1, days // 7)))
-        fig.autofmt_xdate()
-        plt.grid(True, which='both', linestyle='--', linewidth=0.5)
-        plt.tight_layout()
-
-        # Save plot to a bytes buffer instead of a file
-        buf = BytesIO()
-        plt.savefig(buf, format='png', dpi=100)
-        buf.seek(0)
-        plt.close(fig)
-
-        return buf
+        logger.info(f"Views update task finished. Updated {updated_count} posts.")
