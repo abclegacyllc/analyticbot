@@ -11,9 +11,8 @@ from src.bot.config import settings
 from src.bot.database.db import create_pool
 from src.bot.middlewares.i18n import i18n_middleware
 from src.bot.database.repositories import (
-    UserRepository,
-    ChannelRepository,
-    PlanRepository
+    UserRepository, PlanRepository, ChannelRepository, SchedulerRepository, 
+    AnalyticsRepository
 )
 from src.bot.services.guard_service import GuardService
 from src.bot.services.subscription_service import SubscriptionService
