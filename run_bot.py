@@ -7,12 +7,12 @@ from aiogram_i18n import I18nMiddleware
 from aiogram_i18n.cores import FluentRuntimeCore
 
 # Use the correct, consistent imports
-from src.bot.container import container
-from src.bot.config import settings
-from src.bot.handlers import admin_handlers, user_handlers
-from src.bot.middlewares.dependency_middleware import DependencyMiddleware
-from src.bot.utils.language_manager import LanguageManager
-from src.bot.database.repositories import UserRepository
+from bot.container import container
+from bot.config import settings
+from bot.handlers import admin_handlers, user_handlers
+from bot.middlewares.dependency_middleware import DependencyMiddleware
+from bot.utils.language_manager import LanguageManager
+from bot.database.repositories import UserRepository
 
 async def main():
     """Main function to start the bot."""

@@ -1,8 +1,8 @@
 import asyncio
 import logging
 from asyncpg import Pool
-from src.bot.config import settings
-from src.bot.database import db
+from bot.config import settings
+from bot.database import db
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
