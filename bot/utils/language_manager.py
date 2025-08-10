@@ -1,7 +1,7 @@
 from aiogram.types import TelegramObject, User
 from aiogram_i18n.managers import BaseManager
 
-# Use relative imports and the correct Settings class
+# Nisbiy import va to'g'ri 'Settings' klassini ishlatamiz
 from ..config import Settings
 from ..database.repositories import UserRepository
 
