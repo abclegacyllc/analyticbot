@@ -8,7 +8,7 @@ celery_app = Celery(
     broker=settings.REDIS_URL.unicode_string(),
     backend=settings.REDIS_URL.unicode_string(),
     # YECHIM: Celery'ga vazifalarni qayerdan topishni 'include' orqali aytamiz.
-    # Bu usul 'circular import' muammosini oldini oladi.
+    # Bu usul 'circular import' muammosining oldini oladi.
     include=["bot.tasks"],
 )
 
