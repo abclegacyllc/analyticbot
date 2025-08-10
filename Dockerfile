@@ -1,31 +1,34 @@
-# 1-BOSQICH: Bog'liqliklarni aniqlash va qotirish (lock)
+# Stage 1: Build the dependencies
 FROM python:3.11-slim as builder
 
-# Poetry'ni o'rnatish
+# Install Poetry
 WORKDIR /opt/poetry
 RUN pip install poetry==1.8.2
 
-# Loyiha fayllarini nusxalash
+# Copy only the dependency files
 WORKDIR /app
 COPY pyproject.toml poetry.lock* ./
 
-# requirements.txt faylini yaratish
+# Export the dependencies to a requirements.txt file
 RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
 
-# 2-BOSQICH: Asosiy ilovani qurish
+
+# Stage 2: Build the final application image
 FROM python:3.11-slim
 
 WORKDIR /app
 
-# Birinchi bosqichdan tayyor requirements.txt faylini nusxalash
-# --- MANA SHU QATOR TUZATILDI ---
+# Copy the requirements.txt from the builder stage
 COPY --from=builder /app/requirements.txt .
 
-# Bog'liqliklarni pip orqali o'rnatish
+# Install the dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Loyihaning qolgan qismini nusxalash
+# Copy your entire project code into the image
 COPY . .
 
-# Konteyner ishga tushganda bajariladigan buyruq
-CMD ["python", "run_bot.py"]
+# --- THIS IS THE FINAL, GUARANTEED FIX ---
+# This command installs your project (the 'src' directory) as a package.
+# This makes all imports like 'from src.bot...' work reliably from anywhere.
+RUN pip install -e .
+# ----------------------------------------
