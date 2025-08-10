@@ -6,49 +6,43 @@ from aiogram.fsm.storage.redis import RedisStorage
 from aiogram_i18n import I18nMiddleware
 from aiogram_i18n.cores import FluentRuntimeCore
 
-# Importlar 'src'siz va to'g'ri nomlar bilan
-from bot.container import container
-from bot.config import settings
-from bot.handlers import admin_handlers, user_handlers
-from bot.middlewares.dependency_middleware import DependencyMiddleware
-from bot.utils.language_manager import LanguageManager
-from bot.database.repositories import UserRepository
+# Use the correct, consistent imports
+from src.bot.container import container
+from src.bot.config import settings
+from src.bot.handlers import admin_handlers, user_handlers
+from src.bot.middlewares.dependency_middleware import DependencyMiddleware
+from src.bot.utils.language_manager import LanguageManager
+from src.bot.database.repositories import UserRepository
 
 async def main():
-    """Botni ishga tushiruvchi asosiy funksiya."""
+    """Main function to start the bot."""
     logging.basicConfig(level=logging.INFO)
     logger = logging.getLogger(__name__)
 
-    # Konfiguratsiyani to'g'ridan-to'g'ri import qilingan 'settings' obyektidan olamiz
+    # Use the imported settings object directly
     config = settings
 
-    # Sentry'ni sozlash (agar .env faylida DSN berilgan bo'lsa)
     if config.SENTRY_DSN:
         sentry_sdk.init(dsn=str(config.SENTRY_DSN), traces_sample_rate=1.0)
         logger.info("Sentry is configured.")
 
-    # Aiogram komponentlarini sozlash
-    # Bot obyektini endi DI konteyneridan olamiz, chunki u yerda yagona nusxasi saqlanadi
+    # Get the single Bot instance from the container
     bot: Bot = container.resolve(Bot)
     storage = RedisStorage.from_url(config.REDIS_URL.unicode_string())
     dp = Dispatcher(storage=storage)
 
-    # Tilni boshqarish menejerini konteynerdan bog'liqlik olib sozlaymiz
+    # Setup middlewares
     user_repo = container.resolve(UserRepository)
     language_manager = LanguageManager(user_repo=user_repo, config=config)
-
-    # Middleware'larni o'rnatish
     dp.update.middleware(DependencyMiddleware(container=container))
-
     i18n_middleware = I18nMiddleware(
-        # Lokalizatsiya fayllari uchun yo'lni to'g'rilaymiz ('src'siz)
-        core=FluentRuntimeCore(path="bot/locales/{locale}/LC_MESSAGES"),
+        core=FluentRuntimeCore(path="src/bot/locales/{locale}/LC_MESSAGES"),
         default_locale=config.DEFAULT_LOCALE,
         manager=language_manager
     )
     i18n_middleware.setup(dp)
 
-    # Router'larni ulaymiz
+    # Include routers
     dp.include_router(admin_handlers.router)
     dp.include_router(user_handlers.router)
 
@@ -60,7 +54,6 @@ async def main():
         logger.info("Bot is shutting down.")
         await dp.storage.close()
         await bot.session.close()
-
 
 if __name__ == "__main__":
     try:
