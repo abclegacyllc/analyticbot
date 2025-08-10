@@ -1,99 +1,83 @@
-version: '3.8'
+version: '3.9'
+
+networks:
+  analytic_net:
+    driver: bridge
 
 services:
-  db:
-    image: postgres:13
-    volumes:
-      - postgres_data:/var/lib/postgresql/data/
-      - ./postgres-init:/docker-entrypoint-initdb.d
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB}
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+  # 1. PostgreSQL ma'lumotlar bazasi
+  postgres:
+    image: postgres:15
+    container_name: analytic_postgres
+    env_file: .env
+    networks:
+      - analytic_net
     ports:
       - "5432:5432"
+    volumes:
+      - ./postgres-init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
 
+  # 2. Redis kesh uchun
   redis:
-    image: redis:7.0
+    image: redis:7
+    container_name: analytic_redis
+    networks:
+      - analytic_net
     ports:
       - "6379:6379"
-
+    restart: unless-stopped
+  
+  # 3. Asosiy Bot
   bot:
     build: .
-    command: python run_bot.py
-    volumes:
-      - .:/app
-    environment:
-      - BOT_TOKEN=${BOT_TOKEN}
-      - DB_USER=${POSTGRES_USER}
-      - DB_PASS=${POSTGRES_PASSWORD}
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_NAME=${POSTGRES_DB}
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - ADMIN_IDS=${ADMIN_IDS}
-      - TWA_HOST_URL=${TWA_HOST_URL}
-      - WEBHOOK_HOST=${WEBHOOK_HOST}
-      - WEB_SERVER_HOST=${WEB_SERVER_HOST}
-      - WEB_SERVER_PORT=${WEB_SERVER_PORT}
-    ports:
-      - "8080:8080"
+    container_name: analytic_bot
+    env_file: .env
     depends_on:
-      - db
+      - postgres
       - redis
+    networks:
+      - analytic_net
+    restart: unless-stopped
+    command: python3 run_bot.py
 
+  # 4. FastAPI Backend (TWA uchun)
   api:
-      build: .
-      command: uvicorn api:app --host 0.0.0.0 --port 8000
-      volumes:
-        - .:/app
-      environment:
-        - DB_USER=${POSTGRES_USER}
-        - DB_PASS=${POSTGRES_PASSWORD}
-        - DB_HOST=db
-        - DB_PORT=5432
-        - DB_NAME=${POSTGRES_DB}
-      ports:
-        - "8000:8000"
-      depends_on:
-        - db
-
+    build: .
+    container_name: analytic_api
+    env_file: .env
+    ports:
+      - "8000:8000"
+    networks:
+      - analytic_net
+    depends_on:
+      - postgres
+    restart: unless-stopped
+    command: uvicorn api:app --host 0.0.0.0 --port 8000
+  
+  # 5. Celery Worker (Fon vazifalari uchun)
   celery_worker:
     build: .
-    command: celery -A src.bot.celery_app worker -l info
-    volumes:
-      - .:/app
-    environment:
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-      - DB_USER=${POSTGRES_USER}
-      - DB_PASS=${POSTGRES_PASSWORD}
-      - DB_HOST=db
-      - DB_PORT=5432
-      - DB_NAME=${POSTGRES_DB}
-      - BOT_TOKEN=${BOT_TOKEN}
+    container_name: analytic_celery_worker
+    env_file: .env
     depends_on:
       - redis
-      - db
-  
+      - postgres
+    networks:
+      - analytic_net
+    restart: unless-stopped
+    command: celery -A src.bot.celery_app worker -l info
+
+  # 6. Celery Beat (Vaqti-vaqti bilan ishlaydigan vazifalar uchun)
   celery_beat:
     build: .
-    command: celery -A src.bot.celery_app beat -l info
-    volumes:
-      - .:/app
-    environment:
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    container_name: analytic_celery_beat
+    env_file: .env
     depends_on:
       - redis
-
-  twa-frontend:
-    build:
-      context: ./twa-frontend
-      dockerfile: Dockerfile
-    ports:
-      - "5173:80"
-
-volumes:
-  postgres_data:
+      - postgres
+    networks:
+      - analytic_net
+    restart: unless-stopped
+    # --- BU QATOR YANGILANDI ---
+    command: celery -A src.bot.celery_app beat -l info
