@@ -1,27 +1,34 @@
-# Use a standard Python 3.11 base image
+# 1-BOSQICH: Bog'liqliklarni aniqlash va qotirish (lock)
+FROM python:3.11-slim as builder
+
+# Poetry'ni o'rnatish
+WORKDIR /opt/poetry
+RUN pip install poetry==1.8.2
+
+# FAQAT pyproject.toml faylini nusxalash
+COPY pyproject.toml poetry.lock* ./
+
+# Eng muhim qadam: poetry.lock faylini qayta yaratib,
+# pyproject.toml bilan mosligini ta'minlash
+RUN poetry lock --no-update
+
+# requirements.txt faylini yaratish
+RUN poetry export -f requirements.txt --output requirements.txt --without-hashes
+
+
+# 2-BOSQICH: Asosiy ilovani qurish
 FROM python:3.11-slim
 
-# Set the working directory in the container
 WORKDIR /app
 
-# Install pipx and use it to install the correct version of poetry
-RUN apt-get update && apt-get install -y pipx \
-    && pipx install poetry==1.8.2 \
-    && apt-get clean
+# Birinchi bosqichdan tayyor requirements.txt faylini nusxalash
+COPY --from=builder /opt/poetry/requirements.txt .
 
-# Add poetry to the system's PATH
-ENV PATH="/root/.local/bin:$PATH"
+# Bog'liqliklarni pip orqali o'rnatish
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the dependency files first
-# This layer is cached by Docker, speeding up future builds
-COPY poetry.lock pyproject.toml ./
-
-# Install the project dependencies using the new, correct Poetry version
-RUN poetry install --no-interaction --no-ansi --no-root
-
-# Copy the rest of your application code
+# Loyihaning qolgan qismini nusxalash
 COPY . .
 
-# The command to run when the container starts
-# This will be overridden by your docker-compose.yml, which is correct
+# Konteyner ishga tushganda bajariladigan buyruq
 CMD ["python", "run_bot.py"]
