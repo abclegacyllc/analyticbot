@@ -6,7 +6,7 @@ from fastapi import FastAPI, Depends, HTTPException, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-# Importlar 'src'siz va to'g'ri nomlar bilan
+# Imports updated for the new project structure (without 'src')
 from bot.config import settings, Settings
 from bot.container import container
 from bot.database.models import Channel, ScheduledPost, User, Plan
@@ -29,15 +29,15 @@ from bot.services import (
 )
 from bot.services.auth_service import validate_init_data
 
-# Logging sozlamalari
+# Logging setup
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-# --- DI konteyneridan foydalanadigan funksiyalar ---
+# --- FastAPI Dependencies ---
 
 def get_settings() -> Settings:
-    """Tayyor sozlamalar obyektini qaytaradi."""
+    """Returns the application settings instance."""
     return settings
 
 def get_user_repo() -> UserRepository:
@@ -56,18 +56,14 @@ def get_subscription_service() -> SubscriptionService:
     return container.resolve(SubscriptionService)
 
 def get_guard_service() -> GuardService:
-    # GuardService endi Bot obyektini to'g'ridan-to'g'ri konteynerdan oladi
     return container.resolve(GuardService)
-
-# --- TWA Autentifikatsiya Dependency ---
 
 async def get_validated_user_data(
     authorization: Annotated[str, Header()],
     current_settings: Annotated[Settings, Depends(get_settings)]
 ) -> dict:
     """
-    Har bir so'rovdan oldin `initData`'ni tekshiradi va tasdiqlangan
-    foydalanuvchi ma'lumotlarini qaytaradi.
+    Validates the initData string from a TWA and returns the user data.
     """
     if not authorization or not authorization.startswith("TWA "):
         raise HTTPException(status_code=401, detail="Invalid authorization scheme.")
@@ -77,7 +73,6 @@ async def get_validated_user_data(
         raise HTTPException(status_code=401, detail="initData is missing.")
 
     try:
-        # Bot tokenini to'g'ridan-to'g'ri sozlamalardan olamiz
         user_data = validate_init_data(init_data, current_settings.BOT_TOKEN.get_secret_value())
         return user_data
     except Exception as e:
@@ -85,14 +80,13 @@ async def get_validated_user_data(
         raise HTTPException(status_code=401, detail="Unauthorized: Invalid initData.")
 
 
-# --- FastAPI ilovasi ---
+# --- FastAPI Application ---
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     log.info("API is starting up...")
     yield
     log.info("API is shutting down...")
-
 
 app = FastAPI(
     lifespan=lifespan,
@@ -116,7 +110,8 @@ async def upload_media_file(
     current_settings: Annotated[Settings, Depends(get_settings)]
 ):
     """
-    TWA'dan media faylni qabul qilib, uni "ombor" kanalga yuboradi va file_id qaytaradi.
+    Receives a media file from the TWA, sends it to the storage channel,
+    and returns the file_id.
     """
     bot = Bot(token=current_settings.BOT_TOKEN.get_secret_value())
     content_type = file.content_type
@@ -164,7 +159,6 @@ async def get_initial_data(
         scheduled_posts=scheduled_posts,
     )
 
-
 @app.post("/api/v1/channels", response_model=Channel)
 async def add_channel(
     request_data: AddChannelRequest,
@@ -178,12 +172,10 @@ async def add_channel(
     if not channel_username.startswith("@"):
         channel_username = f"@{channel_username}"
 
-    # Cheklovlarni tekshirish
     await subscription_service.check_channel_limit(user_id)
     channel = await guard_service.check_bot_is_admin(channel_username, user_id)
     
     return channel
-
 
 @app.post("/api/v1/schedule-post", response_model=ScheduledPost)
 async def schedule_post(
@@ -206,7 +198,6 @@ async def schedule_post(
     )
     return post
 
-
 @app.delete("/api/v1/posts/{post_id}", response_model=MessageResponse)
 async def delete_post(
     post_id: int,
@@ -220,7 +211,6 @@ async def delete_post(
     
     await scheduler_repo.delete_scheduled_post(post_id)
     return MessageResponse(message="Post deleted successfully")
-
 
 @app.delete("/api/v1/channels/{channel_id}", response_model=MessageResponse)
 async def delete_channel(
