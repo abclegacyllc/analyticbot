@@ -1,68 +1,51 @@
+import punq
 from typing import Callable, Dict, Any, Awaitable
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject
-from asyncpg import Pool
-from redis.asyncio import Redis
+from sqlalchemy.ext.asyncio import async_sessionmaker
 
-# Repozitoriylarni import qilamiz
+# Repozitoriy va Servislarni type hinting uchun import qilamiz
 from src.bot.database.repositories import (
     UserRepository,
     PlanRepository,
     ChannelRepository,
     SchedulerRepository,
-    AnalyticsRepository
+    AnalyticsRepository,
+)
+from src.bot.services import (
+    SubscriptionService,
+    GuardService,
+    SchedulerService,
+    AnalyticsService,
 )
 
-# --- YECHIM: Har bir servisni o'zining faylidan to'g'ridan-to'g'ri import qilamiz ---
-from src.bot.services.guard_service import GuardService
-from src.bot.services.subscription_service import SubscriptionService
-from src.bot.services.scheduler_service import SchedulerService
-from src.bot.services.analytics_service import AnalyticsService
 
 class DependencyMiddleware(BaseMiddleware):
-    def __init__(
-        self,
-        db_pool: Pool,
-        redis_pool: Redis,
-        user_repo: UserRepository,
-        plan_repo: PlanRepository,
-        channel_repo: ChannelRepository,
-        scheduler_repo: SchedulerRepository,
-        analytics_repo: AnalyticsRepository,
-        guard_service: GuardService,
-        subscription_service: SubscriptionService,
-        scheduler_service: SchedulerService,
-        analytics_service: AnalyticsService
-    ):
-        super().__init__()
-        self.db_pool = db_pool
-        self.redis_pool = redis_pool
-        self.user_repo = user_repo
-        self.plan_repo = plan_repo
-        self.channel_repo = channel_repo
-        self.scheduler_repo = scheduler_repo
-        self.analytics_repo = analytics_repo
-        self.guard_service = guard_service
-        self.subscription_service = subscription_service
-        self.scheduler_service = scheduler_service
-        self.analytics_service = analytics_service
+    """
+    Bu middleware har bir 'update' (xabar, callback) uchun DI konteyneridan foydalanib,
+    kerakli qaramliklarni (servis va repozitoriylarni) yaratadi va ularni
+    handler'larga `data` lug'ati orqali uzatadi.
+    """
+    def __init__(self, container: punq.Container):
+        self.container = container
 
     async def __call__(
         self,
         handler: Callable[[TelegramObject, Dict[str, Any]], Awaitable[Any]],
         event: TelegramObject,
-        data: Dict[str, Any]
+        data: Dict[str, Any],
     ) -> Any:
-        data["db_pool"] = self.db_pool
-        data["redis_pool"] = self.redis_pool
-        data["user_repo"] = self.user_repo
-        data["plan_repo"] = self.plan_repo
-        data["channel_repo"] = self.channel_repo
-        data["scheduler_repo"] = self.scheduler_repo
-        data["analytics_repo"] = self.analytics_repo
-        data["guard_service"] = self.guard_service
-        data["subscription_service"] = self.subscription_service
-        data["scheduler_service"] = self.scheduler_service
-        data["analytics_service"] = self.analytics_service
-        
+        # Har bir so'rov uchun konteynerdan kerakli qaramliklarni "tortib olamiz"
+        # va ularni `data` lug'atiga qo'shamiz.
+        data["session_pool"] = self.container.resolve(async_sessionmaker)
+        data["user_repo"] = self.container.resolve(UserRepository)
+        data["plan_repo"] = self.container.resolve(PlanRepository)
+        data["channel_repo"] = self.container.resolve(ChannelRepository)
+        data["scheduler_repo"] = self.container.resolve(SchedulerRepository)
+        data["analytics_repo"] = self.container.resolve(AnalyticsRepository)
+        data["subscription_service"] = self.container.resolve(SubscriptionService)
+        data["guard_service"] = self.container.resolve(GuardService)
+        data["scheduler_service"] = self.container.resolve(SchedulerService)
+        data["analytics_service"] = self.container.resolve(AnalyticsService)
+
         return await handler(event, data)

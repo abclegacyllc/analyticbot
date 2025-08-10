@@ -1,164 +1,120 @@
 import { create } from 'zustand';
 
-// Telegram Web App obyektini xavfsiz tarzda olish
-const tg = window.Telegram?.WebApp;
+const VITE_API_URL = import.meta.env.VITE_API_URL;
 
-// Foydalanuvchi ID'sini olish. Agar Telegram'dan tashqarida bo'lsa, test uchun ID ishlatamiz.
-const getUserId = () => {
-    // production'da initDataUnsafe dan foydalanish xavfsiz.
-    return tg?.initDataUnsafe?.user?.id || 12345; // 12345 - faqat test uchun fallback
+/**
+ * Har bir so'rov uchun autentifikatsiya sarlavhalarini (headers) tayyorlaydi.
+ * @returns {HeadersInit}
+ */
+const getAuthHeaders = () => {
+  // Telegram Web App'dan initData'ni olamiz. Agar mavjud bo'lmasa, bo'sh satr qaytaramiz.
+  const twaInitData = window.Telegram?.WebApp?.initData || '';
+  return {
+    'Content-Type': 'application/json',
+    'Authorization': `TWA ${twaInitData}` // initData'ni "TWA" prefiksi bilan yuboramiz
+  };
+};
+
+/**
+ * API so'rovlarini yuborish uchun markazlashtirilgan funksiya.
+ * @param {string} endpoint - API endpoint (masalan, '/initial-data')
+ * @param {RequestInit} options - Fetch uchun qo'shimcha opsiyalar (method, body, etc.)
+ * @returns {Promise<any>}
+ */
+const apiFetch = async (endpoint, options = {}) => {
+    const response = await fetch(`${VITE_API_URL}${endpoint}`, {
+        ...options,
+        headers: getAuthHeaders(),
+    });
+
+    const responseData = await response.json();
+
+    if (!response.ok) {
+        // Xatolikni serverdan kelgan xabar bilan birga chiqarish
+        const errorMessage = responseData.detail || 'An unknown error occurred.';
+        console.error(`API Error on ${endpoint}:`, errorMessage);
+        alert(`Error: ${errorMessage}`); // Foydalanuvchiga xatolik haqida xabar berish
+        throw new Error(errorMessage);
+    }
+
+    return responseData;
 };
 
 
 export const useAppStore = create((set, get) => ({
-    channels: [],
-    scheduledPosts: [],
-    isLoading: false,
-    addChannelStatus: { success: false, message: '' },
-    pendingMedia: { file_id: null, media_type: null, previewUrl: null },
+  user: null,
+  plan: null,
+  channels: [],
+  scheduledPosts: [],
 
-    // Boshlang'ich ma'lumotlarni yuklash
-    fetchData: async () => {
-        set({ isLoading: true });
-        const userId = getUserId();
-        try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/initial-data/${userId}`);
-            const data = await response.json();
+  // Boshlang'ich ma'lumotlarni backend'dan yuklash
+  fetchData: async () => {
+    try {
+      const data = await apiFetch('/initial-data');
+      set({
+        channels: data.channels,
+        scheduledPosts: data.scheduled_posts,
+        plan: data.plan,
+        user: data.user,
+      });
+    } catch (error) {
+      console.error("Error fetching initial data:", error);
+    }
+  },
 
-            if (data.ok) {
-                // Ma'lumotlarni store'ga joylashtirish
-                set({
-                    channels: data.data.channels || [],
-                    // Postlarni kanal nomi bilan boyitish
-                    scheduledPosts: data.data.posts?.map(post => ({
-                        ...post,
-                        channel_name: data.data.channels?.find(ch => ch.id === post.channel_id)?.title || 'Unknown Channel'
-                    })) || [],
-                });
-            }
-        } catch (error) {
-            console.error('Error fetching data:', error);
-        } finally {
-            set({ isLoading: false });
-        }
-    },
+  // Yangi kanal qo'shish
+  addChannel: async (channelUsername) => {
+    try {
+      const newChannel = await apiFetch('/channels', {
+        method: 'POST',
+        body: JSON.stringify({ channel_username: channelUsername }),
+      });
+      set((state) => ({ channels: [...state.channels, newChannel] }));
+    } catch (error) {
+      console.error("Error adding channel:", error);
+    }
+  },
 
-    // Yangi kanal qo'shish
-    addChannel: async (username) => {
-        set({ isLoading: true, addChannelStatus: { success: false, message: '' } });
-        const userId = getUserId();
-        try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/channels/${userId}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username }),
-            });
-            const data = await response.json();
-            set({ addChannelStatus: { success: data.ok, message: data.detail || data.message } });
-            if (data.ok) {
-                get().fetchData(); // Muvaffaqiyatli bo'lsa, ma'lumotlarni yangilaymiz
-            }
-        } catch (error) {
-            set({ addChannelStatus: { success: false, message: 'An unexpected error occurred.' } });
-        } finally {
-            set({ isLoading: false });
-        }
-    },
+  // Postni rejalashtirish
+  schedulePost: async (postData) => {
+    try {
+        const newPost = await apiFetch('/schedule-post', {
+            method: 'POST',
+            body: JSON.stringify(postData)
+        });
+        set(state => ({
+            scheduledPosts: [...state.scheduledPosts, newPost].sort((a, b) => new Date(a.scheduled_at) - new Date(b.scheduled_at))
+        }));
+    } catch (error) {
+        console.error('Error scheduling post:', error);
+    }
+  },
 
-    // Media fayl yuklash
-    uploadMedia: async (file) => {
-        set({ isLoading: true });
-        const formData = new FormData();
-        formData.append('file', file);
+  // Rejalashtirilgan postni o'chirish
+  deletePost: async (postId) => {
+    try {
+        await apiFetch(`/posts/${postId}`, {
+            method: 'DELETE'
+        });
+        set(state => ({
+            scheduledPosts: state.scheduledPosts.filter(post => post.id !== postId)
+        }));
+    } catch (error) {
+        console.error('Error deleting post:', error);
+    }
+  },
 
-        try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/media/upload`, {
-                method: 'POST',
-                body: formData,
-            });
-            const data = await response.json();
-
-            if (data.ok) {
-                set({
-                    pendingMedia: {
-                        file_id: data.file_id,
-                        media_type: data.media_type,
-                        previewUrl: URL.createObjectURL(file)
-                    }
-                });
-            } else {
-                console.error("File upload failed:", data.detail);
-            }
-        } catch (error) {
-            console.error("Error uploading file:", error);
-        } finally {
-            set({ isLoading: false });
-        }
-    },
-    
-    // Yuklangan mediani tozalash
-    clearPendingMedia: () => {
-        const { previewUrl } = get().pendingMedia;
-        if (previewUrl) {
-            URL.revokeObjectURL(previewUrl);
-        }
-        set({ pendingMedia: { file_id: null, media_type: null, previewUrl: null } });
-    },
-
-    // Postni rejalashtirish
-    schedulePost: async (postData) => {
-        set({ isLoading: true });
-        const { pendingMedia, clearPendingMedia } = get();
-        const userId = getUserId();
-
-        const body = {
-            user_id: userId,
-            channel_id: postData.channel_id,
-            post_text: postData.text,
-            schedule_time: postData.schedule_time,
-            inline_buttons: postData.inline_buttons,
-            media_id: pendingMedia.file_id,
-            media_type: pendingMedia.media_type,
-        };
-
-        try {
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/posts`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
-            });
-            const data = await response.json();
-            if (data.ok) {
-                clearPendingMedia();
-                get().fetchData();
-            }
-        } catch (error) {
-            console.error('Network error:', error);
-        } finally {
-            set({ isLoading: false });
-        }
-    },
-
-    // Rejalashtirilgan postni o'chirish
-    deletePost: async (postId) => {
-        set({ isLoading: true });
-        const userId = getUserId();
-        try {
-            // API endpoint to'g'ri user_id bilan chaqirilmoqda
-            const response = await fetch(`${import.meta.env.VITE_API_BASE_URL}/api/v1/posts/${postId}/${userId}`, {
-                method: 'DELETE',
-            });
-            const data = await response.json();
-            if (data.ok) {
-                get().fetchData();
-            }
-        } catch (error) {
-            console.error('Network error:', error);
-        } finally {
-            set({ isLoading: false });
-        }
-    },
+  // Kanalni o'chirish
+  deleteChannel: async (channelId) => {
+    try {
+      await apiFetch(`/channels/${channelId}`, {
+        method: 'DELETE'
+      });
+      set(state => ({
+        channels: state.channels.filter(channel => channel.id !== channelId)
+      }));
+    } catch (error) {
+      console.error('Error deleting channel:', error);
+    }
+  }
 }));
-
-// Ilova ilk bor ishga tushganda ma'lumotlarni avtomatik yuklash
-useAppStore.getState().fetchData();
