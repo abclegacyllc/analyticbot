@@ -1,34 +1,27 @@
-# Dockerfile'ning to'liq va tuzatilgan versiyasi
-
-# 1-bosqich: Python bog'liqliklarini o'rnatish
-FROM python:3.11-slim as builder
-
-WORKDIR /app
-
-# Poetry o'rnatish
-RUN pip install poetry
-
-# Bog'liqlik fayllarini nusxalash
-COPY poetry.lock pyproject.toml /app/
-
-# Bog'liqliklarni o'rnatish (development uchun kerak emaslarini o'tkazib yuborish)
-RUN poetry install --no-dev
-
-# 2-bosqich: Asosiy ilovani yaratish
+# Use a standard Python 3.11 base image
 FROM python:3.11-slim
 
+# Set the working directory in the container
 WORKDIR /app
 
-# Birinchi bosqichdan virtual muhitni nusxalash
-COPY --from=builder /app/.venv /.venv
+# Install pipx and use it to install the correct version of poetry
+RUN apt-get update && apt-get install -y pipx \
+    && pipx install poetry==1.8.2 \
+    && apt-get clean
 
-# PATH o'zgaruvchisiga virtual muhitni qo'shish
-ENV PATH="/app/.venv/bin:$PATH"
+# Add poetry to the system's PATH
+ENV PATH="/root/.local/bin:$PATH"
 
-# --- O'ZGARTIRILGAN QATOR ---
-# Butun loyiha kodini nusxalash
+# Copy the dependency files first
+# This layer is cached by Docker, speeding up future builds
+COPY poetry.lock pyproject.toml ./
+
+# Install the project dependencies using the new, correct Poetry version
+RUN poetry install --no-interaction --no-ansi --no-root
+
+# Copy the rest of your application code
 COPY . .
 
-# Bot, API yoki Celery ishchisini ishga tushirish uchun kirish nuqtasi
-# Bu buyruq docker-compose.yml faylida bekor qilinadi (override)
+# The command to run when the container starts
+# This will be overridden by your docker-compose.yml, which is correct
 CMD ["python", "run_bot.py"]
