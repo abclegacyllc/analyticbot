@@ -8,14 +8,15 @@ from aiogram import Bot, Dispatcher
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
-from aiogram.types import TelegramObject
 from aiogram_i18n import I18nMiddleware
 from aiogram_i18n.cores import FluentRuntimeCore
-from aiogram_i18n.managers import BaseManager
 from redis.asyncio import Redis
 
+# Asosiy sozlamalarni import qilamiz
 from src.bot.config import settings
 from src.bot.database import db
+
+# Barcha repozitoriy va servislarni import qilamiz
 from src.bot.database.repositories import (
     AnalyticsRepository,
     ChannelRepository,
@@ -29,30 +30,14 @@ from src.bot.services import (
     SchedulerService,
     SubscriptionService,
 )
+
+# Barcha handlerlarni import qilamiz
 from src.bot.handlers import admin_handlers, user_handlers
+
+# Middleware'larni import qilamiz
 from src.bot.middlewares.dependency_middleware import DependencyMiddleware
-
-
-# YAKUNIY TUZATISH: LanguageManager endi shu yerda yaratiladi
-class LanguageManager(BaseManager):
-    def __init__(self, user_repo: UserRepository):
-        super().__init__()
-        self.user_repo = user_repo
-
-    async def get_locale(self, event: TelegramObject) -> str:
-        if event.from_user:
-            user = await self.user_repo.get_or_create_user(
-                event.from_user.id,
-                event.from_user.username,
-                event.from_user.language_code
-            )
-            if user and user.language_code in settings.SUPPORTED_LOCALES:
-                return user.language_code
-        return settings.DEFAULT_LOCALE
-
-    async def set_locale(self, locale: str, event: TelegramObject) -> None:
-        if event.from_user:
-            await self.user_repo.update_user_language(event.from_user.id, locale)
+# Mukammal qilingan i18n tizimini import qilamiz
+from src.bot.middlewares.i18n import i18n_middleware
 
 
 @asynccontextmanager
@@ -75,20 +60,11 @@ async def main():
     storage = RedisStorage(Redis.from_url(str(settings.REDIS_URL)))
     dp = Dispatcher(storage=storage, lifespan=lifespan(bot))
 
+    # Barcha kerakli obyektlarni yaratamiz
     db_pool = await db.create_pool()
     redis_pool = Redis.from_url(str(settings.REDIS_URL))
     
     user_repo = UserRepository(db_pool)
-    
-    # YAKUNIY TUZATISH: LanguageManager'ni user_repo bilan birga yaratamiz
-    language_manager = LanguageManager(user_repo=user_repo)
-
-    i18n_middleware = I18nMiddleware(
-        core=FluentRuntimeCore(path="src/bot/locales/{locale}"),
-        default_locale=settings.DEFAULT_LOCALE,
-        manager=language_manager
-    )
-
     plan_repo = PlanRepository(db_pool)
     channel_repo = ChannelRepository(db_pool)
     scheduler_repo = SchedulerRepository(db_pool)
@@ -98,6 +74,8 @@ async def main():
     scheduler_service = SchedulerService(bot, scheduler_repo, analytics_repo)
     analytics_service = AnalyticsService(bot, analytics_repo)
 
+    # --- MIDDLEWARE'LARNI TO'G'RI TARTIBDA ULASH ---
+    # 1. Avval barcha kerakli obyektlarni har bir so'rovga qo'shib beramiz.
     dp.update.middleware(
         DependencyMiddleware(
             db_pool=db_pool,
@@ -114,8 +92,10 @@ async def main():
         )
     )
 
+    # 2. Keyin, tayyor i18n tizimini ulaymiz.
     i18n_middleware.setup(dp)
 
+    # Routerlarni (handlerlarni) ulaymiz
     dp.include_router(admin_handlers.router)
     dp.include_router(user_handlers.router)
 
