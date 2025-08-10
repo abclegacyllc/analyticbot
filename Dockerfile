@@ -18,7 +18,8 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Birinchi bosqichdan tayyor requirements.txt faylini nusxalash
-COPY --from=builder /opt/poetry/requirements.txt .
+# --- MANA SHU QATOR TUZATILDI ---
+COPY --from=builder /app/requirements.txt .
 
 # Bog'liqliklarni pip orqali o'rnatish
 RUN pip install --no-cache-dir -r requirements.txt
