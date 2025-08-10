@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path  # YANGI IMPORT
 
 import sentry_sdk
 from aiogram import Bot, Dispatcher
@@ -30,8 +31,6 @@ from src.bot.services.subscription_service import SubscriptionService
 
 @asynccontextmanager
 async def lifespan(bot: Bot):
-    # Bu yerga bot ishga tushishidan oldin va o'chishidan keyin bajariladigan
-    # amallarni qo'shish mumkin (masalan, webhook o'rnatish)
     yield
 
 
@@ -55,18 +54,25 @@ async def main():
     storage = RedisStorage(Redis.from_url(str(settings.REDIS_URL)))
     dp = Dispatcher(storage=storage, lifespan=lifespan(bot))
 
-    # I18n (Lokalizatsiya)
+    # --- I18n (Lokalizatsiya) QISMINI O'ZGARTIRAMIZ ---
+    # Loyihaning asosiy papkasiga to'g'ri yo'lni aniqlaymiz
+    base_dir = Path(__file__).parent
+    
     i18n_manager = FluentRuntimeCore(
-        path="src/bot/locales/{locale}",
+        # Endi manzilni to'liq (absolyut) ko'rsatamiz
+        path=base_dir / "src" / "bot" / "locales" / "{locale}",
         raise_key_error=False,
         locales_map={"ru": "en"},
     )
+    # --------------------------------------------------
+
     dp.update.middleware(I18nMiddleware(core=i18n_manager, default_locale="en"))
 
     # Ma'lumotlar bazasi va Redis ulanishlari
     db_pool = await db.create_pool()
     redis_pool = Redis.from_url(str(settings.REDIS_URL))
-
+    
+    # ... qolgan barcha kod o'zgarishsiz qoladi ...
     # Repositories
     user_repo = UserRepository(db_pool)
     plan_repo = PlanRepository(db_pool)
