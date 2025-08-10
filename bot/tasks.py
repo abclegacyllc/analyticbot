@@ -2,7 +2,7 @@ import asyncio
 from celery.utils.log import get_task_logger
 
 # YECHIM: Endi 'celery_app'ni xavfsiz import qila olamiz,
-# chunki 'celery_app.py' endi bu faylni import qilmayapti.
+# chunki 'celery_app.py' endi bu faylni to'g'ridan-to'g'ri import qilmayapti.
 from bot.celery_app import celery_app
 from bot.container import container
 from bot.services import SchedulerService, AnalyticsService
