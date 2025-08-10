@@ -8,7 +8,6 @@ celery[redis]==5.4.0
 asyncpg==0.29.0
 alembic==1.13.2
 SQLAlchemy==2.0.31
-# psycopg2-binary olib tashlandi, chunki asinxron 'asyncpg' ishlatilmoqda
 
 # --- Kesh va fon vazifalari ---
 redis==5.0.7
@@ -20,8 +19,9 @@ pydantic-settings==2.3.4
 sentry-sdk==2.9.0
 
 # --- Lokalizatsiya (i18n) ---
-aiogram-i18n==0.7.1
-fluent.runtime==0.5.0
+aiogram-i18n==1.4
+# XATO TUZATILDI: Mavjud versiyaga o'zgartirildi
+fluent.runtime==0.4.0
 
 # --- Testlash uchun ---
 pytest==8.3.2
