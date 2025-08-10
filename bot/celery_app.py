@@ -1,27 +1,24 @@
 from celery import Celery
-# Nisbiy import orqali sozlamalarni olamiz
+# Nisbiy import ishlatamiz
 from .config import settings
-# Vazifalarni aniq import qilamiz
 from . import tasks
 
 celery_app = Celery(
     "analytic_bot_tasks",
     broker=settings.REDIS_URL.unicode_string(),
     backend=settings.REDIS_URL.unicode_string(),
-    # 'include' hali ham yaxshi amaliyot, lekin yuqoridagi import ishonchliroq
-    include=["src.bot.tasks"],
+    # 'src'siz to'g'ri yo'lni ko'rsatamiz
+    include=["bot.tasks"],
 )
 
-# Davriy vazifalarni sozlash
 celery_app.conf.beat_schedule = {
     'send-scheduled-messages-every-minute': {
-        'task': 'src.bot.tasks.send_scheduled_message',
+        'task': 'bot.tasks.send_scheduled_message', # 'src'siz
         'schedule': 60.0,
     },
     'update-post-views-every-15-minutes': {
-        'task': 'src.bot.tasks.update_post_views_task',
+        'task': 'bot.tasks.update_post_views_task', # 'src'siz
         'schedule': 900.0,
     },
 }
-
 celery_app.conf.timezone = 'UTC'
