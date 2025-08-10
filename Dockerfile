@@ -15,4 +15,5 @@ WORKDIR /app
 COPY --from=builder /app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
+# This command now correctly installs your 'bot' package
 RUN pip install -e .
