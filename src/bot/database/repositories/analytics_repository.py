@@ -30,7 +30,9 @@ class AnalyticsRepository:
             JOIN sent_posts snt ON sp.id = snt.scheduled_post_id
             WHERE snt.sent_at >= NOW() - ($1 || ' days')::INTERVAL;
         """
-        return await self._pool.fetch(query, interval_days)
+        records = await self._pool.fetch(query, interval_days)
+        return [dict(record) for record in records]
+
 
     async def update_post_views(self, scheduled_post_id: int, views: int):
         """
@@ -38,3 +40,18 @@ class AnalyticsRepository:
         """
         query = "UPDATE scheduled_posts SET views = $1 WHERE id = $2;"
         await self._pool.execute(query, views, scheduled_post_id)
+
+    # --- YANGI QO'SHILGAN FUNKSIYA ---
+    async def get_all_posts_to_track_views(self) -> List[Dict[str, Any]]:
+        """
+        Yuborilgan (`sent`) statusidagi va ko'rishlarni kuzatish kerak bo'lgan
+        barcha postlarni ma'lumotlar bazasidan oladi.
+        """
+        query = """
+            SELECT sp.id, sp.views, sp.channel_id, snt.message_id
+            FROM scheduled_posts sp
+            JOIN sent_posts snt ON sp.id = snt.scheduled_post_id
+            WHERE sp.status = 'sent'
+        """
+        rows = await self._pool.fetch(query)
+        return [dict(row) for row in rows]
