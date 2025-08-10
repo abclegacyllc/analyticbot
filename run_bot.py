@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path  # YANGI IMPORT
+from pathlib import Path
 
 import sentry_sdk
 from aiogram import Bot, Dispatcher
@@ -23,10 +23,12 @@ from src.bot.database.repositories import (
 )
 from src.bot.handlers import admin_handlers, user_handlers
 from src.bot.middlewares.dependency_middleware import DependencyMiddleware
-from src.bot.services.analytics_service import AnalyticsService
-from src.bot.services.guard_service import GuardService
-from src.bot.services.scheduler_service import SchedulerService
-from src.bot.services.subscription_service import SubscriptionService
+from src.bot.services import (
+    AnalyticsService,
+    GuardService,
+    SchedulerService,
+    SubscriptionService,
+)
 
 
 @asynccontextmanager
@@ -46,7 +48,6 @@ async def main():
         )
         logger.info("Sentry is configured")
 
-    # Bot, Dispatcher va Storage
     bot = Bot(
         token=settings.BOT_TOKEN.get_secret_value(),
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
@@ -54,39 +55,40 @@ async def main():
     storage = RedisStorage(Redis.from_url(str(settings.REDIS_URL)))
     dp = Dispatcher(storage=storage, lifespan=lifespan(bot))
 
-    # --- I18n (Lokalizatsiya) QISMINI O'ZGARTIRAMIZ ---
+    # --- I18n (Lokalizatsiya) QISMINI YAXSHILAYMIZ ---
     # Loyihaning asosiy papkasiga to'g'ri yo'lni aniqlaymiz
     base_dir = Path(__file__).parent
     
-    i18n_manager = FluentRuntimeCore(
-        # Endi manzilni to'liq (absolyut) ko'rsatamiz
-        path=base_dir / "src" / "bot" / "locales" / "{locale}",
-        raise_key_error=False,
-        locales_map={"ru": "en"},
+    i18n_middleware = I18nMiddleware(
+        core=FluentRuntimeCore(
+            path=base_dir / "src" / "bot" / "locales" / "{locale}",
+        ),
+        # Qaysi tillar borligini aniq ko'rsatamiz
+        locales_map={
+            "uz": "uz",
+            "en": "en",
+            "ru": "en" # Rus tilidagi foydalanuvchilar uchun Ingliz tilini ishlatamiz
+        },
+        default_locale="en"
     )
     # --------------------------------------------------
 
-    dp.update.middleware(I18nMiddleware(core=i18n_manager, default_locale="en"))
-
-    # Ma'lumotlar bazasi va Redis ulanishlari
+    dp.update.middleware(i18n_middleware) # O'zgarish
+    
     db_pool = await db.create_pool()
     redis_pool = Redis.from_url(str(settings.REDIS_URL))
     
-    # ... qolgan barcha kod o'zgarishsiz qoladi ...
-    # Repositories
     user_repo = UserRepository(db_pool)
     plan_repo = PlanRepository(db_pool)
     channel_repo = ChannelRepository(db_pool)
     scheduler_repo = SchedulerRepository(db_pool)
     analytics_repo = AnalyticsRepository(db_pool)
 
-    # Services
     guard_service = GuardService(redis_pool)
     subscription_service = SubscriptionService(settings, user_repo, plan_repo, channel_repo, scheduler_repo)
     scheduler_service = SchedulerService(bot, scheduler_repo, analytics_repo)
     analytics_service = AnalyticsService(bot, analytics_repo)
 
-    # Middlewares
     dp.update.middleware(
         DependencyMiddleware(
             db_pool=db_pool,
@@ -103,11 +105,9 @@ async def main():
         )
     )
 
-    # Routers
     dp.include_router(admin_handlers.router)
     dp.include_router(user_handlers.router)
 
-    # Botni ishga tushirish
     try:
         await bot.delete_webhook(drop_pending_updates=True)
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
