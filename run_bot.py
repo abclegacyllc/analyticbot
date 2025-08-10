@@ -8,6 +8,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import TelegramObject, User
 from aiogram_i18n import I18nMiddleware
+# --- MUHIM: BaseManager import qilinganiga ishonch hosil qiling ---
 from aiogram_i18n.managers import BaseManager
 
 from src.bot.database.db import get_connection_pool
@@ -18,9 +19,6 @@ from src.bot.middlewares.dependency_middleware import DependencyMiddleware
 from src.bot.services import (AnalyticsService, GuardService, SchedulerService,
                             SubscriptionService)
 from src.bot.config import settings
-
-# --- BU QATORNI O'CHIRAMIZ ---
-# from src.bot.middlewares.i18n import i18n_middleware
 
 # Logger sozlamalari
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
@@ -37,7 +35,7 @@ if settings.SENTRY_DSN:
     logger.info("Sentry is configured")
 
 
-# --- LanguageManager KLASSI O'ZGARMAGAN ---
+# --- MUHIM: LanguageManager endi BaseManager'dan vorislik oladi ---
 class LanguageManager(BaseManager):
     def __init__(self, user_repo: UserRepository):
         super().__init__()
@@ -70,19 +68,17 @@ async def main() -> None:
     redis_pool = redis.from_url(f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/0")
     storage = RedisStorage(redis=redis_pool)
 
-    # Repositoriy va servislarni yaratish
-    user_repo = UserRepository(db_pool)
-    # ... boshqa repositoriy va servislar ...
-
     # Dispatcher va Bot obyektlarini yaratish
     dp = Dispatcher(storage=storage)
     bot = Bot(token=settings.BOT_TOKEN.get_secret_value(), parse_mode="HTML")
 
-    # --- O'ZGARTIRILGAN I18N SOZLAMALARI ---
-    # Eski `i18n_middleware` importi o'rniga, uni shu yerda to'g'ri sozlaymiz
+    # Repositoriy'ni yaratish (faqat LanguageManager uchun kerak)
+    user_repo = UserRepository(db_pool)
+
+    # --- MUHIM: I18nMiddleware'ni shu yerda, to'g'ri sozlaymiz ---
     i18n_middleware = I18nMiddleware(
         i18n=I18N_HUB,
-        manager=LanguageManager(user_repo=user_repo), # LanguageManager'ni to'g'ridan-to'g'ri manager sifatida uzatamiz
+        manager=LanguageManager(user_repo=user_repo),
         default_locale="en"
     )
 
@@ -93,7 +89,7 @@ async def main() -> None:
             redis_pool=redis_pool
         )
     )
-    dp.update.middleware(i18n_middleware) # Yangi, to'g'ri sozlangan i18n_middleware
+    dp.update.middleware(i18n_middleware)
 
     # Router'larni ulash
     dp.include_router(admin_handlers.router)
