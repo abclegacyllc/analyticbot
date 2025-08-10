@@ -4,16 +4,21 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
-from src.bot.config import load_config, Config
-from src.bot.database.db import create_async_pool
-from src.bot.database.repositories import (
+# --- THIS IS THE FINAL AND CORRECT FIX ---
+# Import the ready-made 'settings' object and the 'Settings' class directly.
+# The '.' makes the import relative and more reliable inside a package.
+from .config import settings, Settings
+# ----------------------------------------
+
+from .database.db import create_async_pool
+from .database.repositories import (
     UserRepository,
     PlanRepository,
     ChannelRepository,
     SchedulerRepository,
     AnalyticsRepository,
 )
-from src.bot.services import (
+from .services import (
     SubscriptionService,
     GuardService,
     SchedulerService,
@@ -22,38 +27,33 @@ from src.bot.services import (
 
 def get_container() -> punq.Container:
     """
-    DI konteynerini yaratadi va barcha kerakli
-    obyektlarni (qaramliklarni) ro'yxatdan o'tkazadi.
+    Creates the DI container and registers all necessary dependencies.
     """
-    config = load_config()
-    pool = create_async_pool(config.db.construct_connection_url())
+    # Use the imported settings object directly
+    config = settings
+    pool = create_async_pool(config.DATABASE_URL.unicode_string())
 
     container = punq.Container()
 
-    # --- 1-TUZATISH START ---
-    # Bot obyektini "singleton" sifatida ro'yxatdan o'tkazamiz.
-    # Bu shuni anglatadiki, butun ilova davomida yagona Bot obyekti ishlatiladi.
     @container.register(Bot, scope=punq.Scope.singleton)
-    def get_bot_instance(config: Config) -> Bot:
+    def get_bot_instance(config: Settings) -> Bot:
         return Bot(
-            token=config.bot.token.get_secret_value(),
+            token=config.BOT_TOKEN.get_secret_value(),
             default=DefaultBotProperties(parse_mode=ParseMode.HTML)
         )
-    # --- 1-TUZATISH TUGADI ---
 
-    # Asosiy resurslarni registratsiya qilamiz
-    container.register(Config, instance=config)
+    # Register the main resources
+    container.register(Settings, instance=config)
     container.register(async_sessionmaker, instance=pool)
 
-    # Repozitoriy'larni registratsiya qilamiz
+    # Register Repositories
     container.register(UserRepository)
     container.register(PlanRepository)
     container.register(ChannelRepository)
     container.register(SchedulerRepository)
     container.register(AnalyticsRepository)
 
-    # Servis'larni registratsiya qilamiz
-    # Endi ularning Bot obyektiga bog'liqligi avtomatik ta'minlanadi.
+    # Register Services
     container.register(SubscriptionService)
     container.register(GuardService)
     container.register(SchedulerService)
@@ -61,5 +61,5 @@ def get_container() -> punq.Container:
 
     return container
 
-# Global konteyner obyektini yaratib qo'yamiz
+# Create the global container instance
 container = get_container()
