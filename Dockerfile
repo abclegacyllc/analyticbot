@@ -1,22 +1,34 @@
-# 1-qadam: Asosiy Python versiyasini tanlash
-FROM python:3.11-slim
+# Dockerfile'ning to'liq va tuzatilgan versiyasi
 
-# Atrof-muhit o'zgaruvchilari
-ENV PYTHONDONTWRITEBYTECODE 1
-ENV PYTHONUNBUFFERED 1
+# 1-bosqich: Python bog'liqliklarini o'rnatish
+FROM python:3.11-slim as builder
 
-# 2-qadam: Ishchi papkani o'rnatish
 WORKDIR /app
 
-# 3-qadam: Kerakli kutubxonalarni o'rnatish (caching'ni optimallashtirish uchun alohida)
-# Faqat requirements.txt o'zgargandagina bu qadam qayta ishlaydi
-COPY requirements.txt .
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+# Poetry o'rnatish
+RUN pip install poetry
 
-# 4-qadam: Loyiha kodini konteynerga nusxalash
+# Bog'liqlik fayllarini nusxalash
+COPY poetry.lock pyproject.toml /app/
+
+# Bog'liqliklarni o'rnatish (development uchun kerak emaslarini o'tkazib yuborish)
+RUN poetry install --no-dev
+
+# 2-bosqich: Asosiy ilovani yaratish
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Birinchi bosqichdan virtual muhitni nusxalash
+COPY --from=builder /app/.venv /.venv
+
+# PATH o'zgaruvchisiga virtual muhitni qo'shish
+ENV PATH="/app/.venv/bin:$PATH"
+
+# --- O'ZGARTIRILGAN QATOR ---
+# Butun loyiha kodini nusxalash
 COPY . .
 
-# 5-qadam: Alembic migratsiyalarini ishga tushirish uchun skript
-# Bu skriptni docker-compose orqali chaqiramiz
-# CMD ["alembic", "upgrade", "head"]
+# Bot, API yoki Celery ishchisini ishga tushirish uchun kirish nuqtasi
+# Bu buyruq docker-compose.yml faylida bekor qilinadi (override)
+CMD ["python", "run_bot.py"]
