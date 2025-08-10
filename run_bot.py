@@ -30,11 +30,9 @@ from src.bot.services import (
     SubscriptionService,
 )
 
-
 @asynccontextmanager
 async def lifespan(bot: Bot):
     yield
-
 
 async def main():
     logging.basicConfig(level=logging.INFO)
@@ -55,13 +53,12 @@ async def main():
     storage = RedisStorage(Redis.from_url(str(settings.REDIS_URL)))
     dp = Dispatcher(storage=storage, lifespan=lifespan(bot))
 
-    # --- I18n (Lokalizatsiya) QISMINI YAXSHILAYMIZ ---
-    # Loyihaning asosiy papkasiga to'g'ri yo'lni aniqlaymiz
+    # --- I18n (LOKALIZATSIYA) QISMINI TO'G'RILAYMIZ ---
     base_dir = Path(__file__).parent
     
     i18n_middleware = I18nMiddleware(
         core=FluentRuntimeCore(
-            path=base_dir / "src" / "bot" / "locales" / "{locale}",
+            path=str(base_dir / "src" / "bot" / "locales" / "{locale}"),
             # locales_map ni bu yerga, ya'ni FluentRuntimeCore ga o'tkazamiz
             locales_map={
                 "uz": "uz",
@@ -73,7 +70,7 @@ async def main():
     )
     # --------------------------------------------------
 
-    dp.update.middleware(i18n_middleware) # O'zgarish
+    dp.update.middleware(i18n_middleware)
     
     db_pool = await db.create_pool()
     redis_pool = Redis.from_url(str(settings.REDIS_URL))
@@ -115,7 +112,6 @@ async def main():
         await db_pool.close()
         await redis_pool.close()
         logger.info("Bot stopped.")
-
 
 if __name__ == "__main__":
     try:
