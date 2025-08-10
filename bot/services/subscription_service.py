@@ -1,13 +1,13 @@
 from typing import Optional
-from src.bot.config import Settings
-from src.bot.database.repositories import (
+from bot.config import Settings
+from bot.database.repositories import (
     PlanRepository,
     ChannelRepository,
     SchedulerRepository,
     UserRepository
 )
 # Import the new dataclass
-from src.bot.database.models import SubscriptionStatus
+from bot.database.models import SubscriptionStatus
 
 
 class SubscriptionService:

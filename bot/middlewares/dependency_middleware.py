@@ -5,14 +5,14 @@ from aiogram.types import TelegramObject
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 # Repozitoriy va Servislarni type hinting uchun import qilamiz
-from src.bot.database.repositories import (
+from bot.database.repositories import (
     UserRepository,
     PlanRepository,
     ChannelRepository,
     SchedulerRepository,
     AnalyticsRepository,
 )
-from src.bot.services import (
+from bot.services import (
     SubscriptionService,
     GuardService,
     SchedulerService,

@@ -4,7 +4,7 @@ from typing import List
 from aiogram import Bot
 from aiogram.exceptions import TelegramBadRequest
 
-from src.bot.database.repositories.analytics_repository import AnalyticsRepository
+from bot.database.repositories.analytics_repository import AnalyticsRepository
 
 # Logger sozlamalari
 logger = logging.getLogger(__name__)

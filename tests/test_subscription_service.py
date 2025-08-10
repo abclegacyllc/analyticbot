@@ -2,9 +2,9 @@ import pytest
 from unittest.mock import AsyncMock, MagicMock
 
 # Test qilinadigan servis va unga bog'liq qismlarni import qilamiz
-from src.bot.services.subscription_service import SubscriptionService
-from src.bot.database.repositories import UserRepository, PlanRepository, ChannelRepository, SchedulerRepository
-from src.bot.config import Settings
+from bot.services.subscription_service import SubscriptionService
+from bot.database.repositories import UserRepository, PlanRepository, ChannelRepository, SchedulerRepository
+from bot.config import Settings
 
 # Pytest sozlamasi
 pytestmark = pytest.mark.asyncio

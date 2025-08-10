@@ -3,9 +3,9 @@ from aiogram.filters import CommandStart
 from aiogram.types import WebAppInfo
 from aiogram_i18n import I18nContext
 
-from src.bot.database.repositories import UserRepository
-from src.bot.services.subscription_service import SubscriptionService
-from src.bot.config import settings
+from bot.database.repositories import UserRepository
+from bot.services.subscription_service import SubscriptionService
+from bot.config import settings
 
 router = Router()
 

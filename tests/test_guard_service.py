@@ -1,6 +1,6 @@
 import pytest
 import fakeredis.aioredis
-from src.bot.services.guard_service import GuardService
+from bot.services.guard_service import GuardService
 
 @pytest.fixture
 async def redis_conn():

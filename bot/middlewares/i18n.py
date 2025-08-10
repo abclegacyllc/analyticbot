@@ -1,5 +1,5 @@
 from aiogram.i18n.middleware import I18nMiddleware
-from src.bot.locales.i18n_hub import I18N_HUB
+from bot.locales.i18n_hub import I18N_HUB
 
 # I18nMiddleware obyektini yaratish va eksport qilish
 # Tilni boshqarish logikasi run_bot.py ichidagi LanguageManager'da amalga oshiriladi

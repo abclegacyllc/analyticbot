@@ -5,10 +5,10 @@ from datetime import datetime, timezone
 from aiogram_i18n import I18nContext
 
 # Import necessary repository and service classes for type hinting
-from src.bot.services.scheduler_service import SchedulerService
-from src.bot.services.analytics_service import AnalyticsService
-from src.bot.services.guard_service import GuardService
-from src.bot.database.repositories import ChannelRepository
+from bot.services.scheduler_service import SchedulerService
+from bot.services.analytics_service import AnalyticsService
+from bot.services.guard_service import GuardService
+from bot.database.repositories import ChannelRepository
 
 router = Router()
 

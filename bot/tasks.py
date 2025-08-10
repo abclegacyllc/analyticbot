@@ -3,12 +3,12 @@ import logging
 
 from aiogram import Bot
 
-from src.bot.celery_app import celery_app
-from src.bot.config import settings
-from src.bot.database import db
-from src.bot.database.repositories import SchedulerRepository, AnalyticsRepository
-from src.bot.services.scheduler_service import SchedulerService
-from src.bot.services.analytics_service import AnalyticsService
+from bot.celery_app import celery_app
+from bot.config import settings
+from bot.database import db
+from bot.database.repositories import SchedulerRepository, AnalyticsRepository
+from bot.services.scheduler_service import SchedulerService
+from bot.services.analytics_service import AnalyticsService
 
 logger = logging.getLogger(__name__)
 

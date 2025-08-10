@@ -5,13 +5,13 @@ from asyncpg import Pool
 from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.redis import RedisStorage, DefaultKeyBuilder
 
-from src.bot.config import settings
-from src.bot.database.db import create_pool
-from src.bot.handlers import admin_handlers, user_handlers
-from src.bot.middlewares.dependency_middleware import DependencyMiddleware
+from bot.config import settings
+from bot.database.db import create_pool
+from bot.handlers import admin_handlers, user_handlers
+from bot.middlewares.dependency_middleware import DependencyMiddleware
 
 # i18n middleware'ni import qilamiz
-from src.bot.middlewares.i18n import i18n_middleware
+from bot.middlewares.i18n import i18n_middleware
 
 # Logger sozlamalari
 logging.basicConfig(level=logging.INFO)

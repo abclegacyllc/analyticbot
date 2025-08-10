@@ -2,7 +2,7 @@ from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 import logging
 
-from src.bot.database.repositories import SchedulerRepository, AnalyticsRepository # AnalyticsRepository'ni import qilamiz
+from bot.database.repositories import SchedulerRepository, AnalyticsRepository # AnalyticsRepository'ni import qilamiz
 
 logger = logging.getLogger(__name__)
 
