@@ -1,8 +1,6 @@
 import logging
 from typing import Annotated
-
 from aiogram import Bot
-# Xatolikni ushlash uchun TelegramAPIError'ni import qilamiz
 from aiogram.exceptions import TelegramAPIError
 from fastapi import FastAPI, Depends, HTTPException, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware

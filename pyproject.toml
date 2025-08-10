@@ -2,12 +2,9 @@
 name = "analyticbot"
 version = "0.1.0"
 description = ""
-authors = ["ABC <you@example.com>"]
+authors = ["Your Name <you@example.com>"]
 readme = "README.md"
-# --- YAKUNIY YECHIM MANA SHU YERDA ---
-# Poetry'ga paketning nomi 'bot' ekanligini va uni
-# 'src' papkasining ichidan topish mumkinligini aytamiz.
-packages = [{include = "bot", from = "src"}]
+packages = [{include = "bot"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
