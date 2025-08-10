@@ -4,62 +4,61 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-# We are moving the database connection function here to remove all external imports
-# that could fail.
-def create_async_pool(db_url: str) -> async_sessionmaker:
-    """Creates a new asynchronous session pool for the database."""
-    engine = create_async_engine(db_url, echo=False)
-    return async_sessionmaker(engine, expire_on_commit=False)
-
-# Import other project files after the function is defined
-from .config import settings, Settings
-from .database.repositories import (
+# Barcha importlar yangi strukturaga moslashtirilgan
+from bot.config import settings, Settings
+from bot.database.repositories import (
     UserRepository,
     PlanRepository,
     ChannelRepository,
     SchedulerRepository,
     AnalyticsRepository,
 )
-from .services import (
+from bot.services import (
     SubscriptionService,
     GuardService,
     SchedulerService,
     AnalyticsService,
 )
 
+def create_async_pool(db_url: str) -> async_sessionmaker:
+    """Ma'lumotlar bazasi uchun asinxron ulanishlar pulini (pool) yaratadi."""
+    engine = create_async_engine(db_url, echo=False)
+    return async_sessionmaker(engine, expire_on_commit=False)
+
+
 def get_container() -> punq.Container:
     """
-    Creates the DI container and registers all necessary dependencies.
+    DI konteynerini yaratadi va barcha kerakli
+    obyektlarni (qaramliklarni) ro'yxatdan o'tkazadi.
     """
     config = settings
     pool = create_async_pool(config.DATABASE_URL.unicode_string())
 
     container = punq.Container()
 
-    # --- THIS IS THE FINAL AND CORRECT FIX ---
-    # We define the factory function first...
-    def get_bot_instance(config: Settings) -> Bot:
+    # --- YECHIM: Bot'ni ro'yxatdan o'tkazishning to'g'ri usuli ---
+    # Avval funksiyani aniqlaymiz...
+    def get_bot_instance(settings: Settings) -> Bot:
         return Bot(
-            token=config.BOT_TOKEN.get_secret_value(),
+            token=settings.BOT_TOKEN.get_secret_value(),
             default=DefaultBotProperties(parse_mode=ParseMode.HTML)
         )
-    # ...and then we register it using a direct method call.
-    # We are NO LONGER using the incorrect '@' decorator syntax.
+    # ...keyin uni 'factory' sifatida to'g'ridan-to'g'ri metod orqali registratsiya qilamiz.
     container.register(Bot, factory=get_bot_instance, scope=punq.Scope.singleton)
-    # ----------------------------------------
+    # --------------------------------------------------------------
 
-    # Register the main resources
+    # Asosiy resurslarni registratsiya qilamiz
     container.register(Settings, instance=config)
     container.register(async_sessionmaker, instance=pool)
 
-    # Register Repositories
+    # Repozitoriy'larni registratsiya qilamiz
     container.register(UserRepository)
     container.register(PlanRepository)
     container.register(ChannelRepository)
     container.register(SchedulerRepository)
     container.register(AnalyticsRepository)
 
-    # Register Services
+    # Servis'larni registratsiya qilamiz
     container.register(SubscriptionService)
     container.register(GuardService)
     container.register(SchedulerService)
@@ -67,5 +66,5 @@ def get_container() -> punq.Container:
 
     return container
 
-# Create the global container instance
+# Global konteyner obyektini yaratib qo'yamiz
 container = get_container()
