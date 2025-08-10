@@ -1,81 +1,80 @@
-# "version" atributi olib tashlandi
-networks:
-  analytic_net:
-    driver: bridge
-
 services:
-  # 1. PostgreSQL ma'lumotlar bazasi
   postgres:
-    image: postgres:15
-    container_name: analytic_postgres
-    env_file: .env
-    networks:
-      - analytic_net
+    image: postgres:15-alpine
+    container_name: analytic_bot_postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres-init:/docker-entrypoint-initdb.d
     ports:
       - "5432:5432"
-    volumes:
-      - ./postgres-init:/docker-entrypoint-initdb.d
-    restart: unless-stopped
-
-  # 2. Redis kesh uchun
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
   redis:
-    image: redis:7
-    container_name: analytic_redis
-    networks:
-      - analytic_net
+    image: redis:7-alpine
+    container_name: analytic_bot_redis
     ports:
       - "6379:6379"
-    restart: unless-stopped
-  
-  # 3. Asosiy Bot
+    restart: always
   bot:
-    build: .
     container_name: analytic_bot
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python run_bot.py
     env_file: .env
     depends_on:
-      - postgres
-      - redis
-    networks:
-      - analytic_net
-    restart: unless-stopped
-    command: python3 run_bot.py
-
-  # 4. FastAPI Backend (TWA uchun)
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+    volumes:
+      - .:/app
+    restart: always
   api:
-    build: .
-    container_name: analytic_api
+    container_name: analytic_bot_api
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: uvicorn src.api.main:app --host 0.0.0.0 --port 8000
     env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
     ports:
       - "8000:8000"
-    networks:
-      - analytic_net
-    depends_on:
-      - postgres
-    restart: unless-stopped
-    command: uvicorn api:app --host 0.0.0.0 --port 8000
-  
-  # 5. Celery Worker (Fon vazifalari uchun)
+    volumes:
+      - .:/app
+    restart: always
   celery_worker:
-    build: .
-    container_name: analytic_celery_worker
+    container_name: analytic_bot_celery_worker
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A src.bot.celery_app worker --loglevel=info
     env_file: .env
     depends_on:
-      - redis
-      - postgres
-    networks:
-      - analytic_net
-    restart: unless-stopped
-    command: celery -A src.bot.celery_app worker -l info
-
-  # 6. Celery Beat (Vaqti-vaqti bilan ishlaydigan vazifalar uchun)
+      redis: { condition: service_started }
+      postgres: { condition: service_healthy }
+    volumes:
+      - .:/app
+    restart: always
   celery_beat:
-    build: .
-    container_name: analytic_celery_beat
+    container_name: analytic_bot_celery_beat
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A src.bot.celery_app beat --loglevel=info
     env_file: .env
     depends_on:
-      - redis
-      - postgres
-    networks:
-      - analytic_net
-    restart: unless-stopped
-    command: celery -A src.bot.celery_app beat -l info
+      redis: { condition: service_started }
+    volumes:
+      - .:/app
+    restart: always
+volumes:
+  postgres_data:
