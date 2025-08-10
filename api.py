@@ -6,35 +6,35 @@ from fastapi import FastAPI, Depends, HTTPException, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-# Endi 'settings' obyektini va 'Settings' klassini to'g'ridan-to'g'ri import qilamiz
-from src.bot.config import settings, Settings
-from src.bot.container import container
-from src.bot.database.models import Channel, ScheduledPost, User, Plan
-from src.bot.database.repositories import (
+# Importlar 'src'siz va to'g'ri nomlar bilan
+from bot.config import settings, Settings
+from bot.container import container
+from bot.database.models import Channel, ScheduledPost, User, Plan
+from bot.database.repositories import (
     UserRepository,
     ChannelRepository,
     SchedulerRepository,
     PlanRepository,
 )
-from src.bot.models.twa import (
+from bot.models.twa import (
     InitialDataResponse,
     AddChannelRequest,
     SchedulePostRequest,
     ValidationErrorResponse,
-    MessageResponse
+    MessageResponse,
 )
-from src.bot.services import (
+from bot.services import (
     GuardService,
     SubscriptionService,
 )
-from src.bot.services.auth_service import validate_init_data
+from bot.services.auth_service import validate_init_data
 
 # Logging sozlamalari
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-# --- DI konteyneridan foydalanadigan funksiyalar (Tuzatilgan) ---
+# --- DI konteyneridan foydalanadigan funksiyalar ---
 
 def get_settings() -> Settings:
     """Tayyor sozlamalar obyektini qaytaradi."""
@@ -56,11 +56,10 @@ def get_subscription_service() -> SubscriptionService:
     return container.resolve(SubscriptionService)
 
 def get_guard_service() -> GuardService:
-    # Bu servis endi Bot obyektini konteynerdan oladi
-    bot_instance = container.resolve(Bot)
-    return GuardService(bot=bot_instance, channel_repo=get_channel_repo())
+    # GuardService endi Bot obyektini to'g'ridan-to'g'ri konteynerdan oladi
+    return container.resolve(GuardService)
 
-# --- TWA Autentifikatsiya Dependency (Tuzatilgan) ---
+# --- TWA Autentifikatsiya Dependency ---
 
 async def get_validated_user_data(
     authorization: Annotated[str, Header()],
@@ -81,11 +80,9 @@ async def get_validated_user_data(
         # Bot tokenini to'g'ridan-to'g'ri sozlamalardan olamiz
         user_data = validate_init_data(init_data, current_settings.BOT_TOKEN.get_secret_value())
         return user_data
-    except HTTPException as e:
-        raise e
     except Exception as e:
         log.error(f"Could not validate initData: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error during validation.")
+        raise HTTPException(status_code=401, detail="Unauthorized: Invalid initData.")
 
 
 # --- FastAPI ilovasi ---
@@ -104,19 +101,19 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Production uchun buni aniqroq qiling
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-# --- API Endpoints (Yangilangan) ---
+# --- API Endpoints ---
 
 @app.post("/api/v1/media/upload", tags=["Media"])
 async def upload_media_file(
-    current_settings: Annotated[Settings, Depends(get_settings)],
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
+    current_settings: Annotated[Settings, Depends(get_settings)]
 ):
     """
     TWA'dan media faylni qabul qilib, uni "ombor" kanalga yuboradi va file_id qaytaradi.
@@ -151,7 +148,6 @@ async def get_initial_data(
     scheduler_repo: Annotated[SchedulerRepository, Depends(get_scheduler_repo)],
     plan_repo: Annotated[PlanRepository, Depends(get_plan_repo)],
 ):
-    """Foydalanuvchi uchun barcha boshlang'ich ma'lumotlarni qaytaradi."""
     user_id = user_data['id']
     user: User = await user_repo.get_user(user_id)
     if not user:
@@ -173,11 +169,9 @@ async def get_initial_data(
 async def add_channel(
     request_data: AddChannelRequest,
     user_data: Annotated[dict, Depends(get_validated_user_data)],
-    channel_repo: Annotated[ChannelRepository, Depends(get_channel_repo)],
     guard_service: Annotated[GuardService, Depends(get_guard_service)],
     subscription_service: Annotated[SubscriptionService, Depends(get_subscription_service)],
 ):
-    """Yangi kanal qo'shadi."""
     user_id = user_data['id']
     channel_username = request_data.channel_username.strip()
 
@@ -186,9 +180,8 @@ async def add_channel(
 
     # Cheklovlarni tekshirish
     await subscription_service.check_channel_limit(user_id)
-    await guard_service.check_bot_is_admin(channel_username, user_id)
-
-    channel = await channel_repo.add_channel(user_id, channel_username)
+    channel = await guard_service.check_bot_is_admin(channel_username, user_id)
+    
     return channel
 
 
@@ -199,7 +192,6 @@ async def schedule_post(
     scheduler_repo: Annotated[SchedulerRepository, Depends(get_scheduler_repo)],
     subscription_service: Annotated[SubscriptionService, Depends(get_subscription_service)],
 ):
-    """Postni rejalashtiradi."""
     user_id = user_data['id']
     await subscription_service.check_post_limit(user_id)
     
@@ -221,7 +213,6 @@ async def delete_post(
     user_data: Annotated[dict, Depends(get_validated_user_data)],
     scheduler_repo: Annotated[SchedulerRepository, Depends(get_scheduler_repo)],
 ):
-    """Rejalashtirilgan postni o'chiradi."""
     user_id = user_data['id']
     post = await scheduler_repo.get_scheduled_post(post_id)
     if not post or post.user_id != user_id:
@@ -237,7 +228,6 @@ async def delete_channel(
     user_data: Annotated[dict, Depends(get_validated_user_data)],
     channel_repo: Annotated[ChannelRepository, Depends(get_channel_repo)],
 ):
-    """Kanalni o'chiradi."""
     user_id = user_data['id']
     channel = await channel_repo.get_channel_by_id(channel_id)
     if not channel or channel.user_id != user_id:
