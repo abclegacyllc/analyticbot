@@ -62,13 +62,13 @@ async def main():
     i18n_middleware = I18nMiddleware(
         core=FluentRuntimeCore(
             path=base_dir / "src" / "bot" / "locales" / "{locale}",
+            # locales_map ni bu yerga, ya'ni FluentRuntimeCore ga o'tkazamiz
+            locales_map={
+                "uz": "uz",
+                "en": "en",
+                "ru": "en"
+            }
         ),
-        # Qaysi tillar borligini aniq ko'rsatamiz
-        locales_map={
-            "uz": "uz",
-            "en": "en",
-            "ru": "en" # Rus tilidagi foydalanuvchilar uchun Ingliz tilini ishlatamiz
-        },
         default_locale="en"
     )
     # --------------------------------------------------
