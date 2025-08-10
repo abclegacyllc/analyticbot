@@ -1,23 +1,29 @@
-from celery import Celery
-from src.bot.config import settings  # <-- load_config emas, bevosita settings
+# src/bot/celery_app.py
 
-# Celery app - nomi standart: "app"
-app = Celery(
+from celery import Celery
+# --- YECHIM MANA SHU YERDA ---
+# Importni 'src.bot' dan boshlash o'rniga, '.' (nuqta) bilan boshlaymiz
+# Bu "shu papkaning ichidan" degan ma'noni anglatadi
+from .config import settings
+
+# Celery ilovasini yaratish
+celery_app = Celery(
     "analytic_bot_tasks",
-    broker=str(settings.REDIS_URL),   # <-- REDIS_URL ni to'g'ri ishlatamiz
-    backend=str(settings.REDIS_URL),
+    broker=settings.REDIS_URL.unicode_string(),
+    backend=settings.REDIS_URL.unicode_string(),
     include=["src.bot.tasks"],
 )
 
-app.conf.beat_schedule = {
+# Davriy vazifalarni (Celery Beat) sozlash
+celery_app.conf.beat_schedule = {
     'send-scheduled-messages-every-minute': {
         'task': 'src.bot.tasks.send_scheduled_message',
-        'schedule': 60.0,
+        'schedule': 60.0,  # Har 60 soniyada ishga tushadi
     },
     'update-post-views-every-15-minutes': {
         'task': 'src.bot.tasks.update_post_views_task',
-        'schedule': 900.0,
+        'schedule': 900.0, # Har 900 soniyada (15 daqiqada) ishga tushadi
     },
 }
 
-app.conf.timezone = 'UTC'
+celery_app.conf.timezone = 'UTC'
