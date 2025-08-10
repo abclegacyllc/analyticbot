@@ -1,5 +1,4 @@
-version: '3.9'
-
+# "version" atributi olib tashlandi
 networks:
   analytic_net:
     driver: bridge
@@ -79,5 +78,4 @@ services:
     networks:
       - analytic_net
     restart: unless-stopped
-    # --- BU QATOR YANGILANDI ---
     command: celery -A src.bot.celery_app beat -l info
