@@ -1,66 +1,75 @@
 import React, { useState } from 'react';
-import { Box, TextField, Button, List, ListItem, ListItemText, IconButton, Typography } from '@mui/material';
-import AddCircleIcon from '@mui/icons-material/AddCircle';
-import DeleteIcon from '@mui/icons-material/Delete';
+import { TextField, Button, Box, Select, MenuItem, FormControl, InputLabel } from '@mui/material';
 
-const ButtonConstructor = ({ buttons, onButtonsChange }) => {
-    const [text, setText] = useState('');
-    const [url, setUrl] = useState('');
+const ButtonConstructor = ({ onAddButton }) => {
+    const [buttonText, setButtonText] = useState('');
+    const [buttonUrl, setButtonUrl] = useState('');
+    const [buttonType, setButtonType] = useState('url');
+    // Xatolik holatini saqlash uchun yangi state
+    const [urlError, setUrlError] = useState('');
 
-    const handleAddButton = () => {
-        if (text.trim() === '' || url.trim() === '') return;
-        if (!url.startsWith('http://') && !url.startsWith('https://')) {
-            alert('URL must start with http:// or https://');
-            return;
+    const validateUrl = (url) => {
+        if (url && !url.startsWith('http://') && !url.startsWith('https://')) {
+            setUrlError('URL must start with http:// or https://');
+            return false;
         }
-        onButtonsChange([...buttons, { text, url }]);
-        setText('');
-        setUrl('');
+        setUrlError(''); // Xatolik bo'lmasa, matnni tozalaymiz
+        return true;
     };
 
-    const handleDeleteButton = (indexToDelete) => {
-        onButtonsChange(buttons.filter((_, index) => index !== indexToDelete));
+    const handleAddButton = () => {
+        if (buttonType === 'url') {
+            if (!validateUrl(buttonUrl)) {
+                return; // Agar URL noto'g'ri bo'lsa, funksiyadan chiqib ketamiz
+            }
+        }
+        
+        onAddButton({ text: buttonText, url: buttonUrl });
+        setButtonText('');
+        setButtonUrl('');
+    };
+
+    const handleUrlChange = (e) => {
+        const newUrl = e.target.value;
+        setButtonUrl(newUrl);
+        // Har bir o'zgarishda validatsiya qilamiz
+        validateUrl(newUrl);
     };
 
     return (
-        <Box sx={{ mt: 2 }}>
-            <Typography variant="subtitle1" gutterBottom>Inline Buttons</Typography>
-            <List dense>
-                {buttons.map((btn, index) => (
-                    <ListItem
-                        key={index}
-                        disableGutters
-                        secondaryAction={
-                            <IconButton edge="end" onClick={() => handleDeleteButton(index)}>
-                                <DeleteIcon />
-                            </IconButton>
-                        }
-                    >
-                        <ListItemText primary={btn.text} secondary={btn.url} />
-                    </ListItem>
-                ))}
-            </List>
-            <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 2, p: 2, border: '1px solid grey', borderRadius: '4px' }}>
+            <TextField
+                label="Button Text"
+                value={buttonText}
+                onChange={(e) => setButtonText(e.target.value)}
+                size="small"
+                required
+            />
+            <FormControl size="small">
+                <InputLabel>Button Type</InputLabel>
+                <Select
+                    value={buttonType}
+                    label="Button Type"
+                    onChange={(e) => setButtonType(e.target.value)}
+                >
+                    <MenuItem value="url">URL</MenuItem>
+                </Select>
+            </FormControl>
+            {buttonType === 'url' && (
                 <TextField
-                    label="Button Text"
-                    variant="outlined"
+                    label="Button URL"
+                    value={buttonUrl}
+                    onChange={handleUrlChange} // O'zgartirilgan handler
                     size="small"
-                    value={text}
-                    onChange={(e) => setText(e.target.value)}
-                    fullWidth
+                    required
+                    // Xatolikni ko'rsatish uchun props'lar
+                    error={!!urlError} // Agar urlError'da matn bo'lsa, 'true' bo'ladi
+                    helperText={urlError} // Xatolik matnini ko'rsatish
                 />
-                <TextField
-                    label="URL"
-                    variant="outlined"
-                    size="small"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    fullWidth
-                />
-                <Button variant="contained" onClick={handleAddButton} sx={{ minWidth: 'auto', px: 2 }}>
-                    <AddCircleIcon />
-                </Button>
-            </Box>
+            )}
+            <Button onClick={handleAddButton} variant="outlined" disabled={!buttonText}>
+                Add Button
+            </Button>
         </Box>
     );
 };
