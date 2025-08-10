@@ -4,7 +4,10 @@ version = "0.1.0"
 description = ""
 authors = ["Your Name <you@example.com>"]
 readme = "README.md"
-packages = [{include = "analyticbot", from = "src"}] # <-- THIS IS THE FIX
+# --- THIS IS THE FINAL FIX ---
+# We tell Poetry that the package to install is named 'bot'
+# and it can be found inside the 'src' directory.
+packages = [{include = "bot", from = "src"}]
 
 [tool.poetry.dependencies]
 python = "^3.11"
