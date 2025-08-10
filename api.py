@@ -2,12 +2,15 @@ import logging
 from typing import Annotated
 
 from aiogram import Bot
+# Xatolikni ushlash uchun TelegramAPIError'ni import qilamiz
+from aiogram.exceptions import TelegramAPIError
 from fastapi import FastAPI, Depends, HTTPException, Header, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 
-from src.bot.config import Config
-from src.bot.container import container  # DI konteynerini import qilamiz
+# Endi 'settings' obyektini va 'Settings' klassini to'g'ridan-to'g'ri import qilamiz
+from src.bot.config import settings, Settings
+from src.bot.container import container
 from src.bot.database.models import Channel, ScheduledPost, User, Plan
 from src.bot.database.repositories import (
     UserRepository,
@@ -26,7 +29,6 @@ from src.bot.services import (
     GuardService,
     SubscriptionService,
 )
-# initData'ni tekshirish uchun yangi servisni import qilamiz
 from src.bot.services.auth_service import validate_init_data
 
 # Logging sozlamalari
@@ -34,10 +36,11 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
-# --- DI konteyneridan foydalanadigan funksiyalar ---
+# --- DI konteyneridan foydalanadigan funksiyalar (Tuzatilgan) ---
 
-def get_config() -> Config:
-    return container.resolve(Config)
+def get_settings() -> Settings:
+    """Tayyor sozlamalar obyektini qaytaradi."""
+    return settings
 
 def get_user_repo() -> UserRepository:
     return container.resolve(UserRepository)
@@ -55,22 +58,19 @@ def get_subscription_service() -> SubscriptionService:
     return container.resolve(SubscriptionService)
 
 def get_guard_service() -> GuardService:
-    # Bu servis Bot obyektiga bog'liq, shuning uchun uni alohida yaratamiz
-    config = get_config()
-    bot_instance = Bot(token=config.bot.token, parse_mode="HTML")
-    # Servisni konteynerdan olib, bot obyektini unga o'rnatamiz.
-    # Yoki GuardService'ni ham konteynerga bog'liqlik bilan registratsiya qilish mumkin.
-    # Hozircha shu usul oddiyroq.
+    # Bu servis endi Bot obyektini konteynerdan oladi
+    bot_instance = container.resolve(Bot)
     return GuardService(bot=bot_instance, channel_repo=get_channel_repo())
 
-# --- TWA Autentifikatsiya Dependency ---
+# --- TWA Autentifikatsiya Dependency (Tuzatilgan) ---
 
 async def get_validated_user_data(
-    authorization: Annotated[str, Header()]
+    authorization: Annotated[str, Header()],
+    current_settings: Annotated[Settings, Depends(get_settings)]
 ) -> dict:
     """
     Har bir so'rovdan oldin `initData`'ni tekshiradi va tasdiqlangan
-    foydalanuvchi ma'lumotlarini (словарь ko'rinishida) qaytaradi.
+    foydalanuvchi ma'lumotlarini qaytaradi.
     """
     if not authorization or not authorization.startswith("TWA "):
         raise HTTPException(status_code=401, detail="Invalid authorization scheme.")
@@ -79,12 +79,11 @@ async def get_validated_user_data(
     if not init_data:
         raise HTTPException(status_code=401, detail="initData is missing.")
 
-    config = get_config()
     try:
-        user_data = validate_init_data(init_data, config.bot.token)
+        # Bot tokenini to'g'ridan-to'g'ri sozlamalardan olamiz
+        user_data = validate_init_data(init_data, current_settings.BOT_TOKEN.get_secret_value())
         return user_data
     except HTTPException as e:
-        # Validatsiya xatoligini to'g'ridan-to'g'ri qaytaramiz
         raise e
     except Exception as e:
         log.error(f"Could not validate initData: {e}")
@@ -118,24 +117,23 @@ app.add_middleware(
 
 @app.post("/api/v1/media/upload", tags=["Media"])
 async def upload_media_file(
+    current_settings: Annotated[Settings, Depends(get_settings)],
     file: UploadFile = File(...)
 ):
     """
     TWA'dan media faylni qabul qilib, uni "ombor" kanalga yuboradi va file_id qaytaradi.
-    Bu endpointga initData tekshiruvi shart emas, chunki u faqat faylni saqlaydi.
     """
-    config = get_config()
-    bot = Bot(token=config.bot.token.get_secret_value())
+    bot = Bot(token=current_settings.BOT_TOKEN.get_secret_value())
     content_type = file.content_type
     
     try:
         if content_type and content_type.startswith("image/"):
             media_type = "photo"
-            sent_message = await bot.send_photo(chat_id=config.bot.storage_channel_id, photo=file.file)
+            sent_message = await bot.send_photo(chat_id=current_settings.STORAGE_CHANNEL_ID, photo=file.file)
             file_id = sent_message.photo[-1].file_id
         elif content_type and content_type.startswith("video/"):
             media_type = "video"
-            sent_message = await bot.send_video(chat_id=config.bot.storage_channel_id, video=file.file)
+            sent_message = await bot.send_video(chat_id=current_settings.STORAGE_CHANNEL_ID, video=file.file)
             file_id = sent_message.video.file_id
         else:
             raise HTTPException(status_code=400, detail=f"Unsupported file type: {content_type}")
