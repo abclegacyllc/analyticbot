@@ -60,10 +60,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # --- THE FINAL FIX ---
-    entrypoint: /app/celery_entrypoint.sh
+    # --- ENG OXIRGI YECHIM ---
+    working_dir: /app
     command: celery -A src.bot.celery_app worker --loglevel=info
-    # ---------------------
+    # -------------------------
     env_file: .env
     depends_on:
       - redis
@@ -77,10 +77,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # --- THE FINAL FIX ---
-    entrypoint: /app/celery_entrypoint.sh
+    # --- ENG OXIRGI YECHIM ---
+    working_dir: /app
     command: celery -A src.bot.celery_app beat --loglevel=info
-    # ---------------------
+    # -------------------------
     env_file: .env
     depends_on:
       - redis
