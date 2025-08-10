@@ -1,29 +1,28 @@
 from celery import Celery
-from celery.schedules import crontab
-from src.bot.config import settings
+from src.bot.config import load_config
+
+# Ilova sozlamalarini yuklash
+settings = load_config()
 
 # Celery ilovasini yaratish
+# Endi broker va backend uchun yagona .dsn() metodidan foydalanamiz
 celery_app = Celery(
-    "bot_tasks",
-    broker=f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/0",
-    backend=f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/0",
-    include=["src.bot.tasks"]
+    "analytic_bot_tasks",
+    broker=settings.redis.dsn(),
+    backend=settings.redis.dsn(),
+    include=["src.bot.tasks"],
 )
 
-celery_app.conf.update(
-    task_track_started=True,
-    broker_connection_retry_on_startup=True,
-    # --- O'ZGARTIRILGAN QISM ---
-    beat_schedule={
-        # Har daqiqada rejalashtirilgan postlarni tekshiradi va yuboradi
-        "send-scheduled-posts": {
-            "task": "src.bot.tasks.send_scheduled_message",
-            "schedule": crontab(minute="*/1"),
-        },
-        # Har 15 daqiqada post ko'rishlarini yangilaydi
-        "update-views": {
-            "task": "src.bot.tasks.update_post_views_task",
-            "schedule": crontab(minute="*/15"),
-        }
+# Davriy vazifalarni (Celery Beat) sozlash
+celery_app.conf.beat_schedule = {
+    'send-scheduled-messages-every-minute': {
+        'task': 'src.bot.tasks.send_scheduled_message',
+        'schedule': 60.0,  # Har 60 soniyada ishga tushadi
     },
-)
+    'update-post-views-every-15-minutes': {
+        'task': 'src.bot.tasks.update_post_views_task',
+        'schedule': 900.0, # Har 900 soniyada (15 daqiqada) ishga tushadi
+    },
+}
+
+celery_app.conf.timezone = 'UTC'
