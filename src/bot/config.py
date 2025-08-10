@@ -42,8 +42,11 @@ class Settings(BaseSettings):
     DEFAULT_LOCALE: str = "uz"
     
     # Pydantic'ga .env faylini o'qishni buyuramiz
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
-
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra='ignore'  # <-- ADD THIS
+    )
 
 # Sozlamalarning yagona nusxasini yaratamiz
 # Loyihadagi boshqa barcha modullar shu 'settings' obyektini import qiladi
