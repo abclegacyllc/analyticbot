@@ -1,26 +1,26 @@
+import os
 from celery import Celery
 from celery.schedules import crontab
 
-from src.bot.config import settings
-
 celery_app = Celery(
-    "tasks",
-    broker=settings.REDIS_URL,
-    include=["src.bot.tasks"]
+    "analytic_bot",
+    broker=os.environ.get("CELERY_BROKER_URL"),
+    backend=os.environ.get("CELERY_RESULT_BACKEND"),
+    include=["src.bot.tasks"],
 )
 
-celery_app.conf.beat_schedule = {
-    # Har daqiqada rejalashtirilgan postlarni yuborishni tekshiradi
-    'send-scheduled-posts': {
-        'task': 'src.bot.tasks.send_pending_posts_task',
-        'schedule': crontab(minute='*'),  # Har daqiqada
+celery_app.conf.update(
+    task_serializer="json",
+    accept_content=["json"],
+    result_serializer="json",
+    timezone="Asia/Tashkent",
+    enable_utc=True,
+    beat_schedule={
+        "send-scheduled-posts": {
+            # XATO TO'G'RILANDI: Vazifa nomi to'g'ri ko'rsatildi
+            "task": "src.bot.tasks.send_scheduled_message",
+            # Har daqiqada tekshirish
+            "schedule": crontab(minute="*/1"),
+        },
     },
-    # --- YANGI JADVAL ---
-    # Har 30 daqiqada postlarning ko'rishlar sonini yangilaydi
-    'update-post-views-every-30-minutes': {
-        'task': 'src.bot.tasks.update_post_views_task',
-        'schedule': crontab(minute='*/30'),  # Har 30 daqiqada
-    },
-}
-
-celery_app.conf.timezone = 'UTC'
+)
