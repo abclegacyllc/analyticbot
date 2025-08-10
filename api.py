@@ -106,15 +106,11 @@ app.add_middleware(
 
 @app.post("/api/v1/media/upload", tags=["Media"])
 async def upload_media_file(
-    file: UploadFile = File(...),
-    current_settings: Annotated[Settings, Depends(get_settings)]
+    # --- SYNTAXERROR TUZATILDI: Argumentlar tartibi to'g'rilandi ---
+    current_settings: Annotated[Settings, Depends(get_settings)],
+    file: UploadFile = File(...)
 ):
-    """
-    Receives a media file from the TWA, sends it to the storage channel,
-    and returns the file_id.
-    """
     bot = Bot(token=current_settings.BOT_TOKEN.get_secret_value())
-    content_type = file.content_type
     
     try:
         if content_type and content_type.startswith("image/"):
