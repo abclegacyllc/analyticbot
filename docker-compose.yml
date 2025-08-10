@@ -1,90 +1,99 @@
-version: '3.9'
+version: '3.8'
 
 services:
-  postgres:
-    image: postgres:15-alpine
-    container_name: analytic_db
-    environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+  db:
+    image: postgres:13
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-      # --- ADD THIS LINE ---
+      - postgres_data:/var/lib/postgresql/data/
       - ./postgres-init:/docker-entrypoint-initdb.d
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
     ports:
-      - "${POSTGRES_PORT}:5432"
-    networks:
-      - analytic_net
-    restart: unless-stopped
+      - "5432:5432"
 
-  # 2. Redis (Celery uchun broker va kesh)
   redis:
-    image: redis:7-alpine
-    container_name: analytic_redis
-    networks:
-      - analytic_net
-    restart: unless-stopped
-
-  # 3. Backend (Dockerfile'dan quriladi)
-  backend:
-    build: .
-    container_name: analytic_backend
-    env_file: .env # .env fayldagi barcha o'zgaruvchilarni oladi
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - analytic_net
-    restart: unless-stopped
-    command: python run_bot.py
-
-  # 4. API (FastAPI) serveri
-  api:
-    build: .
-    container_name: analytic_api
-    env_file: .env
-    depends_on:
-      - postgres
-      - redis
-    networks:
-      - analytic_net
+    image: redis:7.0
     ports:
-      - "8000:8000" # TWA'dan so'rovlarni qabul qilish uchun
-    restart: unless-stopped
-    command: uvicorn api:app --host 0.0.0.0 --port 8000
+      - "6379:6379"
 
-  # 5. Celery Worker
+  bot:
+    build: .
+    command: python run_bot.py
+    volumes:
+      - .:/app
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASS=${POSTGRES_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB}
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ADMIN_IDS=${ADMIN_IDS}
+      - TWA_HOST_URL=${TWA_HOST_URL}
+      - WEBHOOK_HOST=${WEBHOOK_HOST}
+      - WEB_SERVER_HOST=${WEB_SERVER_HOST}
+      - WEB_SERVER_PORT=${WEB_SERVER_PORT}
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+      - redis
+
+  api:
+      build: .
+      command: uvicorn api:app --host 0.0.0.0 --port 8000
+      volumes:
+        - .:/app
+      environment:
+        - DB_USER=${POSTGRES_USER}
+        - DB_PASS=${POSTGRES_PASSWORD}
+        - DB_HOST=db
+        - DB_PORT=5432
+        - DB_NAME=${POSTGRES_DB}
+      ports:
+        - "8000:8000"
+      depends_on:
+        - db
+
   celery_worker:
     build: .
-    container_name: analytic_celery_worker
-    env_file: .env
+    command: celery -A src.bot.celery_app worker -l info
+    volumes:
+      - .:/app
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+      - DB_USER=${POSTGRES_USER}
+      - DB_PASS=${POSTGRES_PASSWORD}
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=${POSTGRES_DB}
+      - BOT_TOKEN=${BOT_TOKEN}
     depends_on:
       - redis
-      - postgres
-    networks:
-      - analytic_net
-    restart: unless-stopped
-    command: celery -A src.bot.celery_app worker -l info
-
-  # 6. Celery Beat (Vaqti-vaqti bilan ishlaydigan vazifalar uchun)
+      - db
+  
   celery_beat:
     build: .
-    container_name: analytic_celery_beat
-    env_file: .env
+    command: celery -A src.bot.celery_app beat -l info
+    volumes:
+      - .:/app
+    environment:
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     depends_on:
       - redis
-      - postgres
-    networks:
-      - analytic_net
-    restart: unless-stopped
-    command: celery -A src.bot.celery_app beat -l info --scheduler django_celery_beat.schedulers:DatabaseScheduler
 
-# Ma'lumotlarni saqlash uchun Volume
+  twa-frontend:
+    build:
+      context: ./twa-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80"
+
 volumes:
   postgres_data:
-
-# Servislar bir-biri bilan "gaplashishi" uchun tarmoq
-networks:
-  analytic_net:
-    driver: bridge
