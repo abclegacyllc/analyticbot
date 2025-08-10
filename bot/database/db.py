@@ -1,5 +1,5 @@
 import asyncpg
-from src.bot.config import settings
+from bot.config import settings
 
 async def create_pool():
     """
