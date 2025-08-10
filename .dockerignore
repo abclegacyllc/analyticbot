@@ -1,26 +1,38 @@
-# Git
+# Git va versiyalarni boshqarish
 .git
 .gitignore
 
-# Python
+# Python bilan bog'liq kesh va virtual muhitlar
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
 .venv/
 env/
 venv/
-pip-log.txt
-pip-delete-this-directory.txt
-celerybeat-schedule
 
-# IDE / Editor
+# Muhit o'zgaruvchilari fayllari (xavfsizlik uchun)
+.env
+*.env.local
+
+# IDE va muharrirlar sozlamalari
 .idea/
 .vscode/
 *.swp
 
-# Docker
+# Testlash bilan bog'liq keshlar
+.pytest_cache/
+
+# Frontend (twa-frontend) papkasidagi keraksiz fayllar
+twa-frontend/node_modules/
+twa-frontend/dist/
+twa-frontend/.env
+twa-frontend/.env.local
+
+# Celery va boshqa vaqtinchalik fayllar
+celerybeat-schedule
+
+# Docker'ning o'ziga tegishli fayllar (odatda qo'shilmaydi)
 Dockerfile
 .dockerignore
 docker-compose.yml
