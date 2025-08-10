@@ -1,7 +1,7 @@
 import logging
 import sentry_sdk
 import asyncio
-import os
+import os  # <<--- BU QATOR QO'SHILDI
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -48,14 +48,20 @@ def get_db_pool():
         raise HTTPException(status_code=503, detail="Database connection is not available")
     return db_pool
 
+# --- BU BLOK TO'LIQ YANGILANDI ---
+# Ruxsat etilgan manzilni .env faylidan olish
+# Bu TWA (frontend) ishlayotgan manzil bo'lishi kerak
+allowed_origin = os.environ.get("TWA_HOST_URL", "http://localhost:5173")
+
 # CORS Middleware (TWA bilan bog'lanish uchun)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Production'da aniq manzilga o'zgartirish kerak
+    allow_origins=[allowed_origin], # Production uchun xavfsiz holatga keltirildi
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+# --- O'ZGARISH TUGADI ---
 
 # --- Pydantic Modellar (so'rovlar uchun) ---
 class AddChannelRequest(BaseModel):
@@ -160,7 +166,6 @@ async def create_post_endpoint(request: CreatePostRequest, pool: Pool = Depends(
     except Exception as e:
         logger.error(f"API Error in create_post_endpoint: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to schedule post.")
-
 
 @app.delete("/api/v1/posts/{post_id}/{user_id}", tags=["Posts"])
 async def delete_post_endpoint(post_id: int, user_id: int, pool: Pool = Depends(get_db_pool)):
