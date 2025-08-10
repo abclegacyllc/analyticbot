@@ -3,7 +3,7 @@ import logging
 from aiogram import Bot
 
 # Loyihaning asosiy sozlamalarini import qilamiz
-from src.bot.config import settings
+from bot.config import settings
 
 # Logger sozlamasi
 logging.basicConfig(level=logging.INFO)
