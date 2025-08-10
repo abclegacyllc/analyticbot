@@ -68,7 +68,7 @@ services:
       dockerfile: Dockerfile
     # --- FINAL FIX APPLIED ---
     working_dir: /app
-    command: celery -A src.bot.celery_app worker --loglevel=info
+    command: celery -A src.bot.celery_app:app worker -l info
     # -------------------------
     env_file: .env
     depends_on:
@@ -85,7 +85,7 @@ services:
       dockerfile: Dockerfile
     # --- FINAL FIX APPLIED ---
     working_dir: /app
-    command: celery -A src.bot.celery_app beat --loglevel=info
+    command: celery -A src.bot.celery_app:app beat -l info
     # -------------------------
     env_file: .env
     depends_on:
