@@ -2,15 +2,17 @@ import punq
 from aiogram import Bot
 from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-# --- THIS IS THE FINAL AND CORRECT FIX ---
-# Import the ready-made 'settings' object and the 'Settings' class directly.
-# The '.' makes the import relative and more reliable inside a package.
+# We are moving the database connection function here to remove all external imports
+# that could fail.
+def create_async_pool(db_url: str) -> async_sessionmaker:
+    """Creates a new asynchronous session pool for the database."""
+    engine = create_async_engine(db_url, echo=False)
+    return async_sessionmaker(engine, expire_on_commit=False)
+
+# Import other project files after the function is defined
 from .config import settings, Settings
-# ----------------------------------------
-
-from .database.db import create_async_pool
 from .database.repositories import (
     UserRepository,
     PlanRepository,
@@ -29,18 +31,22 @@ def get_container() -> punq.Container:
     """
     Creates the DI container and registers all necessary dependencies.
     """
-    # Use the imported settings object directly
     config = settings
     pool = create_async_pool(config.DATABASE_URL.unicode_string())
 
     container = punq.Container()
 
-    @container.register(Bot, scope=punq.Scope.singleton)
+    # --- THIS IS THE FINAL AND CORRECT FIX ---
+    # We define the factory function first...
     def get_bot_instance(config: Settings) -> Bot:
         return Bot(
             token=config.BOT_TOKEN.get_secret_value(),
             default=DefaultBotProperties(parse_mode=ParseMode.HTML)
         )
+    # ...and then we register it using a direct method call.
+    # We are NO LONGER using the incorrect '@' decorator syntax.
+    container.register(Bot, factory=get_bot_instance, scope=punq.Scope.singleton)
+    # ----------------------------------------
 
     # Register the main resources
     container.register(Settings, instance=config)
