@@ -1,15 +1,13 @@
 from celery import Celery
-from src.bot.config import load_config
-
-# Ilova sozlamalarini yuklash
-settings = load_config()
+# To'g'ridan-to'g'ri tayyor 'settings' obyektini import qilamiz
+from src.bot.config import settings
 
 # Celery ilovasini yaratish
 # Endi broker va backend uchun yagona .dsn() metodidan foydalanamiz
 celery_app = Celery(
     "analytic_bot_tasks",
-    broker=settings.redis.dsn(),
-    backend=settings.redis.dsn(),
+    broker=settings.REDIS_URL.unicode_string(),
+    backend=settings.REDIS_URL.unicode_string(),
     include=["src.bot.tasks"],
 )
 
