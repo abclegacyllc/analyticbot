@@ -22,7 +22,8 @@ sentry-sdk = "2.9.0"
 aiogram-i18n = "1.4"
 fluent-runtime = "0.4.0"
 matplotlib = "3.9.1"
-punq = "^0.8.0"  # <--- SHU QATORNI QO'SHING
+punq = "^0.7.0"
+
 
 [tool.poetry.group.dev.dependencies]
 pytest = "8.3.2"
