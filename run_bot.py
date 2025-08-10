@@ -1,112 +1,148 @@
 import asyncio
 import logging
-from typing import Any, Awaitable, Callable, Dict
+from contextlib import asynccontextmanager
+from pathlib import Path
 
-import asyncpg
-import redis.asyncio as redis
+import sentry_sdk
 from aiogram import Bot, Dispatcher
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 from aiogram.fsm.storage.redis import RedisStorage
 from aiogram.types import TelegramObject, User
 from aiogram_i18n import I18nMiddleware
-# --- MUHIM: BaseManager import qilinganiga ishonch hosil qiling ---
+from aiogram_i18n.cores import FluentRuntimeCore
 from aiogram_i18n.managers import BaseManager
+from redis.asyncio import Redis
 
-from src.bot.database.db import get_connection_pool
-from src.bot.database.repositories.user_repository import UserRepository
-from src.bot.handlers import admin_handlers, user_handlers
-from src.bot.locales.i18n_hub import I18N_HUB
-from src.bot.middlewares.dependency_middleware import DependencyMiddleware
-from src.bot.services import (AnalyticsService, GuardService, SchedulerService,
-                            SubscriptionService)
 from src.bot.config import settings
+# --- 1-O'ZGARISH: Import to'g'irlandi ---
+from src.bot.database.db import create_pool
+from src.bot.database.repositories import (
+    AnalyticsRepository,
+    ChannelRepository,
+    PlanRepository,
+    SchedulerRepository,
+    UserRepository,
+)
+from src.bot.services import (
+    AnalyticsService,
+    GuardService,
+    SchedulerService,
+    SubscriptionService,
+)
+from src.bot.handlers import admin_handlers, user_handlers
+from src.bot.middlewares.dependency_middleware import DependencyMiddleware
 
-# Logger sozlamalari
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(name)s - %(message)s')
-logger = logging.getLogger(__name__)
 
-# Sentry sozlamalari
-if settings.SENTRY_DSN:
-    import sentry_sdk
-    sentry_sdk.init(
-        dsn=settings.SENTRY_DSN,
-        traces_sample_rate=1.0,
-        profiles_sample_rate=1.0,
-    )
-    logger.info("Sentry is configured")
-
-
-# --- MUHIM: LanguageManager endi BaseManager'dan vorislik oladi ---
 class LanguageManager(BaseManager):
     def __init__(self, user_repo: UserRepository):
         super().__init__()
         self.user_repo = user_repo
 
-    async def get_locale(self, event: TelegramObject, data: Dict[str, Any]) -> str:
-        user: User | None = data.get("event_from_user")
-        if user is None:
-            return self.default_locale
+    async def get_locale(self, event: TelegramObject) -> str:
+        from_user: User | None = None
+        if hasattr(event, "from_user"):
+            from_user = getattr(event, "from_user")
+        elif hasattr(event, "message") and hasattr(event.message, "from_user"):
+            from_user = getattr(event.message, "from_user")
 
-        user_language = await self.user_repo.get_user_language(user.id)
-        if user_language:
-            return user_language
+        if from_user:
+            user = await self.user_repo.get_or_create_user(
+                from_user.id,
+                from_user.username,
+                from_user.language_code
+            )
+            if user and user.language_code in settings.SUPPORTED_LOCALES:
+                return user.language_code
+        
+        return settings.DEFAULT_LOCALE
 
-        if user.language_code and user.language_code in self.i18n.available_locales:
-            return user.language_code
+    async def set_locale(self, locale: str, event: TelegramObject) -> None:
+        from_user: User | None = None
+        if hasattr(event, "from_user"):
+            from_user = getattr(event, "from_user")
+        elif hasattr(event, "message") and hasattr(event.message, "from_user"):
+            from_user = getattr(event.message, "from_user")
 
-        return self.default_locale
-
-    async def set_locale(self, locale: str, data: Dict[str, Any]) -> None:
-        user: User | None = data.get("event_from_user")
-        if user is None:
-            return
-        await self.user_repo.update_user_language(user_id=user.id, language_code=locale)
+        if from_user:
+            await self.user_repo.update_user_language(from_user.id, locale)
 
 
-async def main() -> None:
-    # Ma'lumotlar bazasi va Redis ulanishlarini o'rnatish
-    db_pool: asyncpg.Pool = await get_connection_pool()
-    redis_pool = redis.from_url(f"redis://{settings.REDIS_HOST}:{settings.REDIS_PORT}/0")
-    storage = RedisStorage(redis=redis_pool)
+@asynccontextmanager
+async def lifespan(bot: Bot):
+    yield
 
-    # Dispatcher va Bot obyektlarini yaratish
-    dp = Dispatcher(storage=storage)
-    bot = Bot(token=settings.BOT_TOKEN.get_secret_value(), parse_mode="HTML")
 
-    # Repositoriy'ni yaratish (faqat LanguageManager uchun kerak)
+async def main():
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    if settings.SENTRY_DSN:
+        sentry_sdk.init(dsn=str(settings.SENTRY_DSN), traces_sample_rate=1.0)
+        logger.info("Sentry is configured")
+
+    bot = Bot(
+        token=settings.BOT_TOKEN.get_secret_value(),
+        default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+    )
+    storage = RedisStorage(Redis.from_url(str(settings.REDIS_URL)))
+    dp = Dispatcher(storage=storage, lifespan=lifespan(bot))
+
+    # --- 2-O'ZGARISH: Funksiya chaqiruvi to'g'irlandi ---
+    db_pool = await create_pool()
+    redis_pool = Redis.from_url(str(settings.REDIS_URL))
+    
     user_repo = UserRepository(db_pool)
+    
+    language_manager = LanguageManager(user_repo=user_repo)
 
-    # --- MUHIM: I18nMiddleware'ni shu yerda, to'g'ri sozlaymiz ---
     i18n_middleware = I18nMiddleware(
-        i18n=I18N_HUB,
-        manager=LanguageManager(user_repo=user_repo),
-        default_locale="en"
+        core=FluentRuntimeCore(path="src/bot/locales/{locale}"),
+        default_locale=settings.DEFAULT_LOCALE,
+        manager=language_manager
     )
 
-    # Middleware'larni ro'yxatdan o'tkazish
+    plan_repo = PlanRepository(db_pool)
+    channel_repo = ChannelRepository(db_pool)
+    scheduler_repo = SchedulerRepository(db_pool)
+    analytics_repo = AnalyticsRepository(db_pool)
+    guard_service = GuardService(redis_pool)
+    subscription_service = SubscriptionService(settings, user_repo, plan_repo, channel_repo, scheduler_repo)
+    scheduler_service = SchedulerService(bot, scheduler_repo, analytics_repo)
+    analytics_service = AnalyticsService(bot, analytics_repo)
+
     dp.update.middleware(
         DependencyMiddleware(
             db_pool=db_pool,
-            redis_pool=redis_pool
+            redis_pool=redis_pool,
+            user_repo=user_repo,
+            plan_repo=plan_repo,
+            channel_repo=channel_repo,
+            scheduler_repo=scheduler_repo,
+            analytics_repo=analytics_repo,
+            guard_service=guard_service,
+            subscription_service=subscription_service,
+            scheduler_service=scheduler_service,
+            analytics_service=analytics_service
         )
     )
-    dp.update.middleware(i18n_middleware)
 
-    # Router'larni ulash
+    i18n_middleware.setup(dp)
+
     dp.include_router(admin_handlers.router)
     dp.include_router(user_handlers.router)
 
-    # Botni ishga tushirish
     try:
+        await bot.delete_webhook(drop_pending_updates=True)
         logger.info("Bot ishga tushirildi...")
-        await dp.start_polling(bot)
+        await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
     finally:
         await db_pool.close()
         await redis_pool.close()
         logger.info("Bot to'xtatildi.")
 
-
 if __name__ == "__main__":
     try:
         asyncio.run(main())
     except (KeyboardInterrupt, SystemExit):
-        logger.info("Bot jarayoni to'xtatildi.")
+        logging.info("Bot foydalanuvchi tomonidan to'xtatildi.")
