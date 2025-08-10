@@ -2,11 +2,11 @@
 name = "analyticbot"
 version = "0.1.0"
 description = ""
-authors = ["Your Name <you@example.com>"]
+authors = ["ABC <you@example.com>"]
 readme = "README.md"
-# --- THIS IS THE FINAL FIX ---
-# We tell Poetry that the package to install is named 'bot'
-# and it can be found inside the 'src' directory.
+# --- YAKUNIY YECHIM MANA SHU YERDA ---
+# Poetry'ga paketning nomi 'bot' ekanligini va uni
+# 'src' papkasining ichidan topish mumkinligini aytamiz.
 packages = [{include = "bot", from = "src"}]
 
 [tool.poetry.dependencies]
