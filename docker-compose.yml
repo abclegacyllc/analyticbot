@@ -30,7 +30,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # --- FINAL FIX APPLIED ---
+    working_dir: /app
     command: python run_bot.py
+    # -------------------------
     env_file: .env
     depends_on:
       postgres: { condition: service_healthy }
@@ -44,7 +47,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # --- FINAL FIX APPLIED ---
+    working_dir: /app
     command: uvicorn api:app --host 0.0.0.0 --port 8000
+    # -------------------------
     env_file: .env
     depends_on:
       postgres: { condition: service_healthy }
@@ -60,7 +66,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # --- ENG OXIRGI YECHIM ---
+    # --- FINAL FIX APPLIED ---
     working_dir: /app
     command: celery -A src.bot.celery_app worker --loglevel=info
     # -------------------------
@@ -77,7 +83,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # --- ENG OXIRGI YECHIM ---
+    # --- FINAL FIX APPLIED ---
     working_dir: /app
     command: celery -A src.bot.celery_app beat --loglevel=info
     # -------------------------
