@@ -4,7 +4,7 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 
-# Barcha importlar yangi strukturaga moslashtirilgan
+# Importlar yangi, soddalashtirilgan strukturaga moslashtirilgan
 from bot.config import settings, Settings
 from bot.database.repositories import (
     UserRepository,
@@ -44,6 +44,7 @@ def get_container() -> punq.Container:
             default=DefaultBotProperties(parse_mode=ParseMode.HTML)
         )
     # ...keyin uni 'factory' sifatida to'g'ridan-to'g'ri metod orqali registratsiya qilamiz.
+    # Bu 'punq'ga 'settings' obyektini avtomatik topib, funksiyaga uzatish imkonini beradi.
     container.register(Bot, factory=get_bot_instance, scope=punq.Scope.singleton)
     # --------------------------------------------------------------
 
