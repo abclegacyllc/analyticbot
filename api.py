@@ -1,6 +1,7 @@
 import logging
 import sentry_sdk
 import asyncio
+import os
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
