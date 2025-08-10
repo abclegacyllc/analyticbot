@@ -4,7 +4,7 @@ from aiogram.types import TelegramObject
 from asyncpg import Pool
 from redis.asyncio import Redis
 
-# Barcha repozitoriy va servislarimizni import qilamiz
+# Repozitoriylarni import qilamiz
 from src.bot.database.repositories import (
     UserRepository,
     PlanRepository,
@@ -12,12 +12,12 @@ from src.bot.database.repositories import (
     SchedulerRepository,
     AnalyticsRepository
 )
-from src.bot.services import (
-    GuardService,
-    SubscriptionService,
-    SchedulerService,
-    AnalyticsService
-)
+
+# --- YECHIM: Har bir servisni o'zining faylidan to'g'ridan-to'g'ri import qilamiz ---
+from src.bot.services.guard_service import GuardService
+from src.bot.services.subscription_service import SubscriptionService
+from src.bot.services.scheduler_service import SchedulerService
+from src.bot.services.analytics_service import AnalyticsService
 
 class DependencyMiddleware(BaseMiddleware):
     def __init__(
@@ -53,7 +53,6 @@ class DependencyMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: Dict[str, Any]
     ) -> Any:
-        # Har bir yangi xabar uchun bu ma'lumotlarni handler'larga "ulab beramiz"
         data["db_pool"] = self.db_pool
         data["redis_pool"] = self.redis_pool
         data["user_repo"] = self.user_repo
