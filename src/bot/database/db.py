@@ -1,12 +1,14 @@
 import asyncpg
 from src.bot.config import settings
 
-async def create_pool() -> asyncpg.Pool:
+async def create_pool():
     """
-    Creates and returns a connection pool to the PostgreSQL database.
+    Creates a connection pool to the PostgreSQL database.
+    
+    Converts the Pydantic PostgresDsn object to a string before passing it
+    to asyncpg to ensure correct connection parsing.
     """
-    return await asyncpg.create_pool(
-        dsn=settings.DATABASE_URL.unicode_string(),
-        min_size=5,  # The minimum number of connections in the pool
-        max_size=20, # The maximum number of connections in the pool
-    )
+    # Pydantic v2'dagi maxsus URL obyektini oddiy matnga (string) o'giramiz
+    dsn_string = str(settings.DATABASE_URL.unicode_string())
+    
+    return await asyncpg.create_pool(dsn=dsn_string)
