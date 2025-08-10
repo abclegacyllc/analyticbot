@@ -9,8 +9,8 @@ from alembic import context
 # --- LOYIHAMIZGA MOSLASHTIRILGAN QISM ---
 # 1. Loyihamizdagi sozlamalar va modellarni import qilamiz
 #    DIQQAT: 'metadata_obj' o'rniga to'g'ri nom 'metadata' ishlatilgan
-from src.bot.config import settings
-from src.bot.database.models import metadata
+from bot.config import settings
+from bot.database.models import metadata
 # ------------------------------------
 
 config = context.config
