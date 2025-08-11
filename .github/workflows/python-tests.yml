@@ -9,28 +9,32 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     strategy:
       matrix:
-        python-version: ["3.11"] # Loyihangizdagi Python versiyasiga moslang
+        python-version: ["3.11"]
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
 
-    # --- 3-TUZATISH START ---
-    - name: Install Poetry
-      run: |
-        pip install poetry
+      - name: Install Poetry
+        run: pip install poetry
 
-    - name: Install dependencies with Poetry
-      run: |
-        poetry install --no-root --without dev
+      - name: Cache Poetry virtualenvs
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pypoetry/virtualenvs
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
 
-    - name: Run tests with pytest
-      run: |
-        poetry run pytest
+      - name: Install dependencies with Poetry
+        run: poetry install --no-root
+
+      - name: Run tests with pytest
+        run: poetry run pytest
