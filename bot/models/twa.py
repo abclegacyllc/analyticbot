@@ -12,7 +12,7 @@ backed by any ORM.
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
 class Button(BaseModel):
@@ -21,9 +21,16 @@ class Button(BaseModel):
 
 
 class AddChannelRequest(BaseModel):
-    """Request body for adding a new channel."""
+    """Request body for adding a new channel.
 
-    channel_username: str
+    The field is named ``channel_username`` in the model but also accepts
+    ``channel_name`` for backwards compatibility with older clients.
+    """
+
+    channel_username: str = Field(alias="channel_name")
+
+    # Allow requests to populate ``channel_username`` using the alias.
+    model_config = ConfigDict(populate_by_name=True)
 
     @field_validator("channel_username")
     @classmethod
