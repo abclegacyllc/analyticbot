@@ -111,8 +111,9 @@ async def upload_media_file(
     file: UploadFile = File(...)
 ):
     bot = Bot(token=current_settings.BOT_TOKEN.get_secret_value())
-    
+
     try:
+        content_type = file.content_type
         if content_type and content_type.startswith("image/"):
             media_type = "photo"
             sent_message = await bot.send_photo(chat_id=current_settings.STORAGE_CHANNEL_ID, photo=file.file)
