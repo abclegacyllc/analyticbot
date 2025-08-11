@@ -1,5 +1,5 @@
 import asyncpg
-from typing import Optional, Dict, Any, List # <-- ADDED List
+from typing import Optional, Dict, Any, List
 
 class ChannelRepository:
     def __init__(self, pool: asyncpg.Pool):
@@ -21,7 +21,8 @@ class ChannelRepository:
     async def get_channel_by_id(self, channel_id: int) -> Optional[Dict[str, Any]]:
         """Retrieves a single channel by its ID."""
         async with self.pool.acquire() as conn:
-            return await conn.fetchrow("SELECT * FROM channels WHERE channel_id = $1", channel_id)
+            record = await conn.fetchrow("SELECT * FROM channels WHERE channel_id = $1", channel_id)
+            return dict(record) if record else None
 
     async def count_user_channels(self, user_id: int) -> int:
         """Counts how many channels a user has registered."""
@@ -32,4 +33,11 @@ class ChannelRepository:
     async def get_user_channels(self, user_id: int) -> List[Dict[str, Any]]:
         """Retrieves all channels registered by a user."""
         async with self.pool.acquire() as conn:
-            return await conn.fetch("SELECT channel_id, channel_name FROM channels WHERE admin_id = $1", user_id)
+            records = await conn.fetch("SELECT channel_id, channel_name FROM channels WHERE admin_id = $1", user_id)
+            return [dict(record) for record in records]
+
+    async def delete_channel(self, channel_id: int) -> bool:
+        """Deletes a channel by its ID."""
+        async with self.pool.acquire() as conn:
+            result = await conn.execute("DELETE FROM channels WHERE channel_id = $1", channel_id)
+            return result != 'DELETE 0'

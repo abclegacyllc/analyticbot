@@ -9,7 +9,6 @@ from contextlib import asynccontextmanager
 # Imports updated for the new project structure (without 'src')
 from bot.config import settings, Settings
 from bot.container import container
-from bot.database.models import Channel, ScheduledPost, User, Plan
 from bot.database.repositories import (
     UserRepository,
     ChannelRepository,
@@ -17,11 +16,15 @@ from bot.database.repositories import (
     PlanRepository,
 )
 from bot.models.twa import (
-    InitialDataResponse,
     AddChannelRequest,
-    SchedulePostRequest,
-    ValidationErrorResponse,
+    Channel,
+    InitialDataResponse,
     MessageResponse,
+    Plan,
+    SchedulePostRequest,
+    ScheduledPost,
+    User,
+    ValidationErrorResponse,
 )
 from bot.services import (
     GuardService,
@@ -140,15 +143,45 @@ async def get_initial_data(
     scheduler_repo: Annotated[SchedulerRepository, Depends(get_scheduler_repo)],
     plan_repo: Annotated[PlanRepository, Depends(get_plan_repo)],
 ):
-    user_id = user_data['id']
-    user: User = await user_repo.get_user(user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found. Please restart the bot.")
+    user_id = user_data["id"]
+    username = user_data.get("username")
 
-    channels: list[Channel] = await channel_repo.get_user_channels(user_id)
-    scheduled_posts: list[ScheduledPost] = await scheduler_repo.get_user_scheduled_posts(user_id)
-    plan: Plan = await plan_repo.get_plan_by_id(user.plan_id)
+    # Ensure the user exists in the database
+    await user_repo.create_user(user_id, username)
 
+    # Fetch plan information
+    plan = None
+    plan_name = await user_repo.get_user_plan_name(user_id)
+    if plan_name:
+        plan_row = await plan_repo.get_plan_by_name(plan_name)
+        if plan_row:
+            plan = Plan(
+                name=plan_row.get("plan_name") or plan_row.get("name"),
+                max_channels=plan_row["max_channels"],
+                max_posts_per_month=plan_row["max_posts_per_month"],
+            )
+
+    # Fetch channels and scheduled posts
+    channel_rows = await channel_repo.get_user_channels(user_id)
+    channels = [
+        Channel(id=row["channel_id"], channel_name=row.get("channel_name") or row.get("title", ""))
+        for row in (channel_rows or [])
+    ]
+    post_rows = await scheduler_repo.get_scheduled_posts_by_user(user_id)
+    scheduled_posts = [
+        ScheduledPost(
+            id=row["id"],
+            channel_id=row["channel_id"],
+            text=row.get("post_text"),
+            media_id=row.get("media_id"),
+            media_type=row.get("media_type"),
+            scheduled_at=row.get("schedule_time"),
+            buttons=row.get("inline_buttons"),
+        )
+        for row in (post_rows or [])
+    ]
+
+    user = User(id=user_id, username=username)
     return InitialDataResponse(
         user=user,
         plan=plan,
@@ -170,9 +203,9 @@ async def add_channel(
         channel_username = f"@{channel_username}"
 
     await subscription_service.check_channel_limit(user_id)
-    channel = await guard_service.check_bot_is_admin(channel_username, user_id)
-    
-    return channel
+    channel_data = await guard_service.check_bot_is_admin(channel_username, user_id)
+
+    return Channel(id=channel_data["channel_id"], channel_name=channel_data.get("channel_name") or channel_data.get("title", ""))
 
 @app.post("/api/v1/schedule-post", response_model=ScheduledPost)
 async def schedule_post(
@@ -184,16 +217,25 @@ async def schedule_post(
     user_id = user_data['id']
     await subscription_service.check_post_limit(user_id)
     
-    post = await scheduler_repo.create_scheduled_post(
+    post_id = await scheduler_repo.create_scheduled_post(
         user_id=user_id,
         channel_id=request.channel_id,
-        text=request.text,
-        media_type=request.media_type,
+        post_text=request.text,
+        schedule_time=request.scheduled_at,
         media_id=request.media_id,
-        scheduled_at=request.scheduled_at,
-        buttons=request.buttons
+        media_type=request.media_type,
+        inline_buttons=[button.model_dump() for button in request.buttons] if request.buttons else None,
     )
-    return post
+
+    return ScheduledPost(
+        id=post_id,
+        channel_id=request.channel_id,
+        text=request.text,
+        media_id=request.media_id,
+        media_type=request.media_type,
+        scheduled_at=request.scheduled_at,
+        buttons=request.buttons,
+    )
 
 @app.delete("/api/v1/posts/{post_id}", response_model=MessageResponse)
 async def delete_post(
@@ -202,11 +244,10 @@ async def delete_post(
     scheduler_repo: Annotated[SchedulerRepository, Depends(get_scheduler_repo)],
 ):
     user_id = user_data['id']
-    post = await scheduler_repo.get_scheduled_post(post_id)
-    if not post or post.user_id != user_id:
+    success = await scheduler_repo.delete_scheduled_post(post_id, user_id)
+    if not success:
         raise HTTPException(status_code=404, detail="Post not found or you don't have permission.")
-    
-    await scheduler_repo.delete_scheduled_post(post_id)
+
     return MessageResponse(message="Post deleted successfully")
 
 @app.delete("/api/v1/channels/{channel_id}", response_model=MessageResponse)
@@ -216,9 +257,12 @@ async def delete_channel(
     channel_repo: Annotated[ChannelRepository, Depends(get_channel_repo)],
 ):
     user_id = user_data['id']
-    channel = await channel_repo.get_channel_by_id(channel_id)
-    if not channel or channel.user_id != user_id:
+    channel_row = await channel_repo.get_channel_by_id(channel_id)
+    if not channel_row or channel_row["admin_id"] != user_id:
         raise HTTPException(status_code=404, detail="Channel not found or you don't have permission.")
-    
-    await channel_repo.delete_channel(channel_id)
+
+    success = await channel_repo.delete_channel(channel_id)
+    if not success:
+        raise HTTPException(status_code=404, detail="Channel not found or you don't have permission.")
+
     return MessageResponse(message="Channel deleted successfully")
