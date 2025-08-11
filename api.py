@@ -164,7 +164,11 @@ async def get_initial_data(
     # Fetch channels and scheduled posts
     channel_rows = await channel_repo.get_user_channels(user_id)
     channels = [
-        Channel(id=row["channel_id"], channel_name=row.get("channel_name") or row.get("title", ""))
+        Channel(
+            id=row["id"],
+            title=row.get("title") or "",
+            username=row.get("username"),
+        )
         for row in (channel_rows or [])
     ]
     post_rows = await scheduler_repo.get_scheduled_posts_by_user(user_id)
@@ -205,7 +209,11 @@ async def add_channel(
     await subscription_service.check_channel_limit(user_id)
     channel_data = await guard_service.check_bot_is_admin(channel_username, user_id)
 
-    return Channel(id=channel_data["channel_id"], channel_name=channel_data.get("channel_name") or channel_data.get("title", ""))
+    return Channel(
+        id=channel_data.get("channel_id") or channel_data["id"],
+        title=channel_data.get("channel_name") or channel_data.get("title", ""),
+        username=channel_data.get("username"),
+    )
 
 @app.post("/api/v1/schedule-post", response_model=ScheduledPost)
 async def schedule_post(
@@ -258,7 +266,7 @@ async def delete_channel(
 ):
     user_id = user_data['id']
     channel_row = await channel_repo.get_channel_by_id(channel_id)
-    if not channel_row or channel_row["admin_id"] != user_id:
+    if not channel_row or channel_row["user_id"] != user_id:
         raise HTTPException(status_code=404, detail="Channel not found or you don't have permission.")
 
     success = await channel_repo.delete_channel(channel_id)

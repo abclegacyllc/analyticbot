@@ -32,7 +32,7 @@ async def get_and_verify_channel(
         await message.reply(i18n.get("guard-channel-not-registered"))
         return None
 
-    if db_channel['admin_id'] != message.from_user.id:
+    if db_channel["user_id"] != message.from_user.id:
         await message.reply(i18n.get("guard-channel-not-owner"))
         return None
     
@@ -55,14 +55,16 @@ async def add_channel_handler(
     except Exception:
         return await message.reply(i18n.get("add-channel-not-found", channel_name=channel_username))
     
-    # --- UPDATED LINE ---
-    # Now we pass the channel name (title) to the repository method
+    # Store basic channel information in the database
     await channel_repo.create_channel(
-        channel_id=channel.id, 
-        admin_id=message.from_user.id,
-        channel_name=channel.title # <-- PASSING THE NAME
+        channel_id=channel.id,
+        user_id=message.from_user.id,
+        title=channel.title,
+        username=channel.username,
     )
-    await message.reply(i18n.get("add-channel-success", channel_title=channel.title, channel_id=channel.id))
+    await message.reply(
+        i18n.get("add-channel-success", channel_title=channel.title, channel_id=channel.id)
+    )
 
 
 # --- GUARD MODULE ---

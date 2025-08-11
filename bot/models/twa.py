@@ -56,7 +56,8 @@ class Channel(BaseModel):
     """Representation of a Telegram channel in API responses."""
 
     id: int
-    channel_name: str
+    title: str
+    username: Optional[str] = None
 
 
 class ScheduledPost(BaseModel):
